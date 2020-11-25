@@ -82,14 +82,14 @@ typedef struct aeFileEvent {
  * 定时处理的事件，用单链表的形式组织起来。finalizerProc这个成员还不理解有什么作用。目前主进程中应该只有serverCron这一个需要定时处理的事件
  * */
 typedef struct aeTimeEvent {
-    long long id; /* time event identifier. */
-    long when_sec; /* seconds */
-    long when_ms; /* milliseconds */
-    aeTimeProc *timeProc;
-    aeEventFinalizerProc *finalizerProc;
-    void *clientData;
-    struct aeTimeEvent *prev;
-    struct aeTimeEvent *next;
+    long long id; //时间事件ID/* time event identifier. */
+    long when_sec; //触发的秒数/* seconds */
+    long when_ms; //触发的毫秒数/* milliseconds */
+    aeTimeProc *timeProc;//函数指针，指向时间事件的处理函数
+    aeEventFinalizerProc *finalizerProc; //函数指针，删除时间事件节点之前会先调用该函数（就是个钩子）
+    void *clientData;//指向对应客户端对象
+    struct aeTimeEvent *prev;//上一个节点
+    struct aeTimeEvent *next;//下一个节点
     int refcount; /* refcount to prevent timer events from being
   		   * freed in recursive time event calls. */
 } aeTimeEvent;

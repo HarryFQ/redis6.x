@@ -37,7 +37,11 @@
 #include <assert.h>
 #include "sds.h"
 #include "sdsalloc.h"
-
+/**
+ * 计算内存占用字节数
+ * @param type 类型
+ * @return
+ */
 static inline int sdsHdrSize(char type) {
     switch(type&SDS_TYPE_MASK) {
         case SDS_TYPE_5:
@@ -772,7 +776,7 @@ void sdstoupper(sds s) {
  *
  * If two strings share exactly the same prefix, but one of the two has
  * additional characters, the longer string is considered to be greater than
- * the smaller one. */
+ * the smaller one. （如果两个字符串共享完全相同的前缀，但其中一个有附加字符，则认为较长的字符串大于较小的字符串。）*/
 int sdscmp(const sds s1, const sds s2) {
     size_t l1, l2, minlen;
     int cmp;

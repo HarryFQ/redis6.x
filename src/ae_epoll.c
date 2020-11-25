@@ -130,23 +130,31 @@ static void aeApiDelEvent(aeEventLoop *eventLoop, int fd, int delmask) {
  * @return
  */
 static int aeApiPoll(aeEventLoop *eventLoop, struct timeval *tvp) {
+    // 获取对应的aeApiState类型
     aeApiState *state = eventLoop->apidata;
+    // 阻塞等待事件的发生
     int retval, numevents = 0;
-
+    /**
+     * epfd: 函数epoll_create返回的epoll文件描述符。
+     * events: 需要监控的事件
+     *setsize: 每次能处理的最大事件数目；
+     *timeout: epoll_wait函数阻塞超时事件，如果超过timeout 时间事件还没发生，函数不再阻塞直接返回；当timeout设置为0时函数立即返回，timeout设置为-1时函数会一直阻塞到有事件发生；
+     */
     retval = epoll_wait(state->epfd,state->events,eventLoop->setsize,
             tvp ? (tvp->tv_sec*1000 + tvp->tv_usec/1000) : -1);
     if (retval > 0) {
         int j;
-
+        //所有发生的事件数量
         numevents = retval;
         for (j = 0; j < numevents; j++) {
             int mask = 0;
             struct epoll_event *e = state->events+j;
-
+            //转换事件类型为Redis定义的类型（比如：读，写等操作）参考 EPOLL_EVENTS枚举
             if (e->events & EPOLLIN) mask |= AE_READABLE;
             if (e->events & EPOLLOUT) mask |= AE_WRITABLE;
             if (e->events & EPOLLERR) mask |= AE_WRITABLE|AE_READABLE;
             if (e->events & EPOLLHUP) mask |= AE_WRITABLE|AE_READABLE;
+            //记录发生事件到fired数组（保存下来慢慢执行）
             eventLoop->fired[j].fd = e->data.fd;
             eventLoop->fired[j].mask = mask;
         }

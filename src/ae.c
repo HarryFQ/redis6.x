@@ -242,6 +242,15 @@ static void aeAddMillisecondsToNow(long long milliseconds, long *sec, long *ms) 
     *ms = when_ms;
 }
 
+/**
+ *
+ * @param eventLoop 输入参数指向事件循环结构体；
+ * @param milliseconds 表示此时间事件触发时间，单位毫秒，注意这里是一个相对时间，即从当前时间开始算起，milliseconds毫秒后会被触发；
+ * @param proc  指向时间事件的处理函数；
+ * @param clientData 指向对应的结构体对象；
+ * @param finalizerProc 函数指针，删除事件的时候调用，相当于钩子；
+ * @return
+ */
 long long aeCreateTimeEvent(aeEventLoop *eventLoop, long long milliseconds,
                             aeTimeProc *proc, void *clientData,
                             aeEventFinalizerProc *finalizerProc) {
@@ -384,7 +393,8 @@ static int processTimeEvents(aeEventLoop *eventLoop) {
     return processed;
 }
 
-/* Process every pending time event, then every pending file event
+/**
+ * Process every pending time event, then every pending file event
  * (that may be registered by time event callbacks just processed).(处理每个挂起的时间事件，然后处理每个挂起的文件事件(这可能是注册的时间事件回调刚刚处理)。)
  * Without special flags the function sleeps until some file event
  * fires, or when the next time event occurs (if any). (如果没有特殊的标志，函数就会休眠，直到发生文件事件触发，或者下一次发生时间事件(如果有的话)。)
@@ -399,6 +409,7 @@ static int processTimeEvents(aeEventLoop *eventLoop) {
  * if flags has AE_CALL_BEFORE_SLEEP set, the beforesleep callback is called. (如果标志设置了AE_CALL_BEFORE_SLEEP，则调用beforesleep回调。)
  *
  * The function returns the number of events processed. (函数返回处理的事件数。)
+ * Redis会通过循环执行函数aeProcessEvents，在调用aeApiPoll之前遍历Redis时间事件的链表，查找最终发生的时间事件，以此作为aeApiPoll需要传入的超时时间。
  * */
 int aeProcessEvents(aeEventLoop *eventLoop, int flags) {
     int processed = 0, numevents;
@@ -417,10 +428,11 @@ int aeProcessEvents(aeEventLoop *eventLoop, int flags) {
         struct timeval tv, *tvp;
 
         if (flags & AE_TIME_EVENTS && !(flags & AE_DONT_WAIT))
+            //查找最近发生的事件
             shortest = aeSearchNearestTimer(eventLoop);
         if (shortest) {
             long now_sec, now_ms;
-
+            //获取当前时间
             aeGetTime(&now_sec, &now_ms);
             tvp = &tv;
 
@@ -441,6 +453,7 @@ int aeProcessEvents(aeEventLoop *eventLoop, int flags) {
             /* If we have to check for events but need to return
              * ASAP because of AE_DONT_WAIT we need to set the timeout
              * to zero */
+            //不需要等待，设置时间等待为0
             if (flags & AE_DONT_WAIT) {
                 tv.tv_sec = tv.tv_usec = 0;
                 tvp = &tv;
@@ -459,14 +472,17 @@ int aeProcessEvents(aeEventLoop *eventLoop, int flags) {
             eventLoop->beforesleep(eventLoop);
 
         /* Call the multiplexing API, will return only on timeout or when
-         * some event fires.主要的poll入口，比如select或者epoll_wait */
+         * some event fires.主要的poll入口，比如select或者epoll_wait  */
+        //阻塞等待文件事件发生，
         numevents = aeApiPoll(eventLoop, tvp);
 
         /* After sleep callback. */
         if (eventLoop->aftersleep != NULL && flags & AE_CALL_AFTER_SLEEP)
             eventLoop->aftersleep(eventLoop);
 
+        //执行已经触发的文件事件
         for (j = 0; j < numevents; j++) {
+            //判断事件类型
             aeFileEvent *fe = &eventLoop->events[eventLoop->fired[j].fd];
             int mask = eventLoop->fired[j].mask;
             int fd = eventLoop->fired[j].fd;
@@ -482,7 +498,10 @@ int aeProcessEvents(aeEventLoop *eventLoop, int flags) {
              * after the readable. In such a case, we invert the calls.
              * This is useful when, for instance, we want to do things
              * in the beforeSleep() hook, like fsynching a file to disk,
-             * before replying to a client. */
+             * before replying to a client.
+             **/
+            //处理文件事件，并且根据类型去执行 读函数或者写函数
+            //判断是否为等待一同处理类型的事件？
             int invert = fe->mask & AE_BARRIER;
 
             /* Note the "fe->mask & mask & ..." code: maybe an already
@@ -491,13 +510,15 @@ int aeProcessEvents(aeEventLoop *eventLoop, int flags) {
              *
              * Fire the readable event if the call sequence is not
              * inverted. */
+            //
             if (!invert && fe->mask & mask & AE_READABLE) {
                 fe->rfileProc(eventLoop, fd, fe->clientData, mask);
                 fired++;
                 fe = &eventLoop->events[fd]; /* Refresh in case of resize. */
             }
 
-            /* Fire the writable event. */
+            /* Fire the writable event.
+             *被触发的写事件*/
             if (fe->mask & mask & AE_WRITABLE) {
                 if (!fired || fe->wfileProc != fe->rfileProc) {
                     fe->wfileProc(eventLoop, fd, fe->clientData, mask);
@@ -506,11 +527,12 @@ int aeProcessEvents(aeEventLoop *eventLoop, int flags) {
             }
 
             /* If we have to invert the call, fire the readable event now
-             * after the writable one. */
+             * after the writable one.（如果我们必须反转调用，现在在可写事件之后触发可读事件。） 如果是读文件事件*/
             if (invert) {
                 fe = &eventLoop->events[fd]; /* Refresh in case of resize. */
                 if ((fe->mask & mask & AE_READABLE) &&
                     (!fired || fe->wfileProc != fe->rfileProc)) {
+                    //调用rfileProc（是指针）处理读事件，对应的函数是 acceptTcpHandler
                     fe->rfileProc(eventLoop, fd, fe->clientData, mask);
                     fired++;
                 }
@@ -562,7 +584,7 @@ int aeWait(int fd, int mask, long long milliseconds) {
  *    aeCreateTimeEvent    // 创建定时器事件的管理结构
  *    aeCreateFileEvent for inet socket    // 创建网络事件的管理结构
  *    aeCreateFileEvent for unix socket    // 内部通信事件的管理结构
- *    aeSetBeforeSleepProc    // 设置beforeSleep处理函数
+ *    aeSetBeforeSleepProc    // 设置beforeSleep处理函数 : 过期键删除操作，
  *    aeSetAfterSleepProc    // 设置afterSleep处理函数
  *    ...
  *    while (!stop)
@@ -579,11 +601,12 @@ int aeWait(int fd, int mask, long long milliseconds) {
  */
 void aeMain(aeEventLoop *eventLoop) {
     // 如果有需要在事件处理前执行的函数，那么其回调函数，接着执行事件aeProcessEvents()，这个函数详见ae.c。
-    eventLoop->stop = 0;
-    while (!eventLoop->stop) {
+    eventLoop->stop = 0; //设置停止标记为（不停止）
+    while (!eventLoop->stop) {//除非停止标志被设置，不然循环不会停止
         aeProcessEvents(eventLoop, AE_ALL_EVENTS |
                                    AE_CALL_BEFORE_SLEEP |
-                                   AE_CALL_AFTER_SLEEP);
+                                   //函数不为空，先执行阻塞函数.beforesleep，它在每次事件循环开始，即Redis阻塞等待文件事件之前执行。函数beforesleep会执行一些不是很浪费时间的操作，如：集群相关操作，过期键的删除操作，向客户端返回命令回复等。
+                                   AE_CALL_AFTER_SLEEP);//执行事件
     }
 }
 

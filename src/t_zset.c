@@ -72,37 +72,55 @@ int zslLexValueGteMin(sds value, zlexrangespec *spec);
 
 int zslLexValueLteMax(sds value, zlexrangespec *spec);
 
-/* Create a skiplist node with the specified number of levels.
- * The SDS string 'ele' is referenced by the node after the call. */
+/**
+ * Create a skiplist node with the specified number of levels.
+ * The SDS string 'ele' is referenced by the node after the call.
+ * 每个创建的zskiplistNode占用的空间大小等于：（zskiplistNode大小 + 当前结点层数 * zskiplistLevel大小）
+ * @param level 层高
+ * @param score 结点分数
+ * @param ele  sds 数据
+ * @return
+ */
 zskiplistNode *zslCreateNode(int level, double score, sds ele) {
     zskiplistNode *zn =
-            zmalloc(sizeof(*zn) + level * sizeof(struct zskiplistLevel));
-    zn->score = score;
-    zn->ele = ele;
+            zmalloc(sizeof(*zn) + level * sizeof(struct zskiplistLevel));//为跳跃表结点分配内存
+    zn->score = score;//保存分数
+    zn->ele = ele; // sds数据
     return zn;
 }
 
-/* Create a new skiplist. */
+/**
+ *Create a new skiplist.
+ * 创建一个跳跃表
+ *
+ **/
 zskiplist *zslCreate(void) {
     int j;
     zskiplist *zsl;
-
+    //为跳跃外层主结构表分配空间
     zsl = zmalloc(sizeof(*zsl));
     zsl->level = 1;
     zsl->length = 0;
+    // 头结点是一个特殊的结点，除了有64层，以及像普通节点一样分配内存外，同时还会初始化每一层的forward为空，score为0
+    //这里指定创建层数为64，score为0 ，sds为null
     zsl->header = zslCreateNode(ZSKIPLIST_MAXLEVEL, 0, NULL);
+    //循环遍历初始化每一层
     for (j = 0; j < ZSKIPLIST_MAXLEVEL; j++) {
         zsl->header->level[j].forward = NULL;
         zsl->header->level[j].span = 0;
     }
+    // 头节点的backward也设置成null
     zsl->header->backward = NULL;
     zsl->tail = NULL;
     return zsl;
 }
 
-/* Free the specified skiplist node. The referenced SDS string representation
+/**
+ * Free the specified skiplist node. The referenced SDS string representation
  * of the element is freed too, unless node->ele is set to NULL before calling
- * this function. */
+ * this function. (释放指定的跳跃列表节点。元素的引用SDS字符串表示形式也会被释放，除非节点>ele在调用此函数之前设置为NULL。)
+ *
+ **/
 void zslFreeNode(zskiplistNode *node) {
     sdsfree(node->ele);
     zfree(node);
@@ -121,30 +139,48 @@ void zslFree(zskiplist *zsl) {
     zfree(zsl);
 }
 
-/* Returns a random level for the new skiplist node we are going to create.
+/**
+ * Returns a random level for the new skiplist node we are going to create.
  * The return value of this function is between 1 and ZSKIPLIST_MAXLEVEL
  * (both inclusive), with a powerlaw-alike distribution where higher
- * levels are less likely to be returned. */
+ * levels are less likely to be returned.
+ *跳跃表生成层高实现，结点层高最小值为1 ，最大值为64 ，其中最大值是 ZSKIPLIST_MAXLEVEL(64) 跳跃表除了Header结点以外，其余的结点层高是随机的，
+ * */
 int zslRandomLevel(void) {
+    //默认层高是1
     int level = 1;
+    // ZSKIPLIST_P 默认是 0.25
     while ((random() & 0xFFFF) < (ZSKIPLIST_P * 0xFFFF))
+        //层数加一
         level += 1;
-    return (level < ZSKIPLIST_MAXLEVEL) ? level : ZSKIPLIST_MAXLEVEL;
+    return (level < ZSKIPLIST_MAXLEVEL) ? level : ZSKIPLIST_MAXLEVEL; //如果大于最大层数，则直接返回最大层数64
 }
 
-/* Insert a new node in the skiplist. Assumes the element does not already
+/**
+ * Insert a new node in the skiplist. Assumes the element does not already
  * exist (up to the caller to enforce that). The skiplist takes ownership
- * of the passed SDS string 'ele'. */
+ * of the passed SDS string 'ele'. (在skiplist中插入一个新节点。假设元素不存在(取决于调用者是否强制执行)。skiplist获得传递的SDS字符串'ele'的所有权。)
+ *
+ **/
 zskiplistNode *zslInsert(zskiplist *zsl, double score, sds ele) {
-    zskiplistNode *update[ZSKIPLIST_MAXLEVEL], *x;
-    unsigned int rank[ZSKIPLIST_MAXLEVEL];
+    zskiplistNode *update[ZSKIPLIST_MAXLEVEL], *x;//update[] 记录插入结点时候，所涉及会影响到的结点位置的指针
+    unsigned int rank[ZSKIPLIST_MAXLEVEL];//rank[]：记录当前层从header结点到update[i]结点经理的步长
     int i, level;
 
     serverAssert(!isnan(score));
     x = zsl->header;
+    /**
+     * 这里有两个循环，外层按照当前跳跃表的层高循环
+     * 内层根据结点的位置循环判断查找目标位置
+     */
     for (i = zsl->level - 1; i >= 0; i--) {
-        /* store rank that is crossed to reach the insert position */
+        /* store rank that is crossed to reach the insert position （被交叉到插入位置的存储等级）*/
         rank[i] = i == (zsl->level - 1) ? 0 : rank[i + 1];
+        /**
+         * 这里的判断逻辑是有两块：
+         * 1、当前点forward不为空并且当前score 小于目标插入score 或者
+         * 2、当前点forward不为空并且当前score 等于目标插入score 并且 当前sds字符串 小于 待插入结点字符串
+         */
         while (x->level[i].forward &&
                (x->level[i].forward->score < score ||
                 (x->level[i].forward->score == score &&
@@ -157,31 +193,36 @@ zskiplistNode *zslInsert(zskiplist *zsl, double score, sds ele) {
     /* we assume the element is not already inside, since we allow duplicated
      * scores, reinserting the same element should never happen since the
      * caller of zslInsert() should test in the hash table if the element is
-     * already inside or not. */
+     * already inside or not.（我们假设该元素还不在哈希表中，因为我们允许重复得分，所以应该永远不会重新插入相同的元素，因为zslInsert()的调用者应该在哈希表中测试该元素是否已经在哈希表中）
+     * 由函数zslRandomLevel得知，跳跃表每个插入结点的层高是随机的，那么跳跃表整体层高也是随机的，如上所示，当出现新增的结点层高大于当前跳跃表层高的时候（上面跳跃表层高是2，新增结点层高假设是3）我们需要调整跳跃表的整体层高，
+     * */
+    //随机获取当前新增结点的层高
     level = zslRandomLevel();
-    if (level > zsl->level) {
+    if (level > zsl->level) {//如果生成的层高大于当前跳跃表的层高
         for (i = zsl->level; i < level; i++) {
-            rank[i] = 0;
-            update[i] = zsl->header;
-            update[i]->level[i].span = zsl->length;
+            rank[i] = 0;//对rank[当前层高]赋值为默认值0
+            update[i] = zsl->header;//update[当前层高]设置为头结点
+            update[i]->level[i].span = zsl->length;// 对当前层的span赋值
         }
-        zsl->level = level;
+        zsl->level = level;//更新当前跳跃表为新的层高
     }
+    // 创建待插入节点
     x = zslCreateNode(level, score, ele);
     for (i = 0; i < level; i++) {
         x->level[i].forward = update[i]->level[i].forward;
         update[i]->level[i].forward = x;
 
-        /* update span covered by update[i] as x is inserted here */
+        /* update span covered by update[i] as x is inserted here 插入节点*/
         x->level[i].span = update[i]->level[i].span - (rank[0] - rank[i]);
+        // 调整跳跃表高度
         update[i]->level[i].span = (rank[0] - rank[i]) + 1;
     }
 
-    /* increment span for untouched levels */
+    /* increment span for untouched levels (如果新的节点插入在新的高层，就增加层高) */
     for (i = level; i < zsl->level; i++) {
         update[i]->level[i].span++;
     }
-
+    // 调整backward指针
     x->backward = (update[0] == zsl->header) ? NULL : update[0];
     if (x->level[0].forward)
         x->level[0].forward->backward = x;

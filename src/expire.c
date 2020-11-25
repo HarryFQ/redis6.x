@@ -151,6 +151,7 @@ int activeExpireCycleTryExpire(redisDb *db, dictEntry *de, long long now) {
  * 函数在一秒钟内执行次数的限制、分配给activeExpireCycle 函数CPU时间的限制、继续删除主键的失效主键数百分比的限制，Redis 已经大大降低了主键失效机制对系统整体性能的影响，
  * 但是如果在实际应用中出现大量主键在短时间内同时失效的情况还是会使得系统的响应能力降低，所以这种情况无疑应该避免
  * @param type
+ *  当 ACTIVE_EXPIRE_CYCLE_FAST时表示快速过期删除。执行快速过期删除有很多限制，当函数activeExpireCycle正在执行时直接返回；当上次执行快速过期键删除的时间小于2000微秒时直接返回。timelimit_exit是声明为static当timelimit_exit的值为1的时候，由此便可通过变量timelimit_exit判断函数activeExpireCycle是否正在执行。变量last_fast_cycle也是声明为static。同时可以看到当执行快速过期删除时，设置函数activeExpireCycle的最大执行时间为1000微秒。
  */
 void activeExpireCycle(int type) {
     /* Adjust the running parameters according to the configured expire

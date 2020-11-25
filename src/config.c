@@ -597,13 +597,16 @@ loaderr:
     exit(1);
 }
 
-/* Load the server configuration from the specified filename.
+/**
+ * 加载配置文件redis.conf
+ * Load the server configuration from the specified filename.
  * The function appends the additional configuration directives stored
  * in the 'options' string to the config file before loading.
  *
  * Both filename and options can be NULL, in such a case are considered
  * empty. This way loadServerConfig can be used to just load a file or
- * just load a string. */
+ * just load a string.
+ **/
 void loadServerConfig(char *filename, char *options) {
     sds config = sdsempty();
     char buf[CONFIG_MAX_LINE+1];

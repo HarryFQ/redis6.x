@@ -1296,12 +1296,12 @@ dictType zsetDictType = {
 
 /* Db->dict, keys are sds strings, vals are Redis objects. */
 dictType dbDictType = {
-        dictSdsHash,                /* hash function */
+        dictSdsHash,                /*当前字典键散列函数 hash function */
         NULL,                       /* key dup */
         NULL,                       /* val dup */
-        dictSdsKeyCompare,          /* key compare */
-        dictSdsDestructor,          /* key destructor */
-        dictObjectDestructor   /* val destructor */
+        dictSdsKeyCompare,          /* 当前字典键的比较函数 key compare */
+        dictSdsDestructor,          /* 当前字典键析构函数 key destructor */
+        dictObjectDestructor   /* 当前字典对象析构函数 val destructor */
 };
 
 /* server.lua_scripts sha (as sds string) -> scripts (as robj) cache. */
@@ -1871,7 +1871,7 @@ void checkChildrenDone(void) {
  * a macro is used: run_with_period(milliseconds) { .... }
  */
 /**
- * fixme serverCron是一个主循环事件的回调处理函数，redis每个循环都会执行该函数。
+ * fixme serverCron是一个主循环事件的回调处理函数，redis每个循环都会执行该函数。实现了Redis服务所有的定时任务，进行周期指向
  * @param eventLoop
  * @param id
  * @param clientData
@@ -1909,7 +1909,7 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
             }
         }
     }
-
+    //100毫秒周期执行
     run_with_period(100) {
         trackInstantaneousMetric(STATS_METRIC_COMMAND, server.stat_numcommands);
         trackInstantaneousMetric(STATS_METRIC_NET_INPUT,
@@ -2744,7 +2744,8 @@ void checkTcpBacklogSettings(void) {
 #endif
 }
 
-/* Initialize a set of file descriptors to listen to the specified 'port'
+/**
+ * Initialize a set of file descriptors to listen to the specified 'port'
  * binding the addresses specified in the Redis server configuration.
  *
  * The listening file descriptors are stored in the integer array 'fds'
@@ -2761,21 +2762,32 @@ void checkTcpBacklogSettings(void) {
  * error, at least one of the server.bindaddr addresses was
  * impossible to bind, or no bind addresses were specified in the server
  * configuration but the function is not able to bind * for at least
- * one of the IPv4 or IPv6 protocols. */
+ * one of the IPv4 or IPv6 protocols.
+ * 初始化一组文件描述符来监听指定的“端口”绑定Redis服务器配置中指定的地址。侦听的文件描述符存储在整数数组“fds”中，它们的数量设置在“count”中。要绑定的地址在全局服务器中指定。bindaddr数组，其编号为server.bindaddr_count。如果服务器配置不包含要绑定的特定地址，此函数将尝试为IPv4和IPv6协议绑定(所有地址)。
+ * @param port 端口
+ * @param fds 数组指向所有socket文件描述符
+ * @param count 存储socket数量
+ **/
 int listenToPort(int port, int *fds, int *count) {
     int j;
-
+    // 输入的port表示用户配置的端口号，server结构体的bindaddr_count字段存储用户配置的IP地址数目,bindaddr字段存储用户配置的所有IP地址
     /* Force binding of 0.0.0.0 if no bind address is specified, always
      * entering the loop if j == 0. */
+    //如果没有指定 IP ，设置为 NULL
     if (server.bindaddr_count == 0) server.bindaddr[0] = NULL;
+    //遍历所有需要bind的 ip
     for (j = 0; j < server.bindaddr_count || j == 0; j++) {
+        //如果为空，用户没有指定，使用默认值，即绑定IPV4 又 绑定 IPV6
         if (server.bindaddr[j] == NULL) {
             int unsupported = 0;
             /* Bind * for both IPv6 and IPv4, we enter here only if
              * server.bindaddr_count == 0. */
+            //创建socket并启动监听，文件描述符存储在fds数组作为返回参数（IPV6）
+            // TODO aneTcpServer实现了 socket 的创建，绑定，监听流程
             fds[*count] = anetTcp6Server(server.neterr, port, NULL,
                                          server.tcp_backlog);
             if (fds[*count] != ANET_ERR) {
+                //TODO 设置socket 为非阻塞,anetNonBlock通过系统调用fcntl设置socket为非阻塞模式。
                 anetNonBlock(NULL, fds[*count]);
                 (*count)++;
             } else if (errno == EAFNOSUPPORT) {
@@ -2785,9 +2797,11 @@ int listenToPort(int port, int *fds, int *count) {
 
             if (*count == 1 || unsupported) {
                 /* Bind the IPv4 address as well. */
+                //创建socket并启动监听，文件描述符存储在fds数组作为返回参数（IPV4）
                 fds[*count] = anetTcpServer(server.neterr, port, NULL,
                                             server.tcp_backlog);
                 if (fds[*count] != ANET_ERR) {
+                    //设置socket 为非阻塞
                     anetNonBlock(NULL, fds[*count]);
                     (*count)++;
                 } else if (errno == EAFNOSUPPORT) {
@@ -2801,10 +2815,15 @@ int listenToPort(int port, int *fds, int *count) {
             if (*count + unsupported == 2) break;
         } else if (strchr(server.bindaddr[j], ':')) {
             /* Bind IPv6 address. */
+            //IP里面有带 : 肯定是IPV6
+            //创建socket并启动监听，文件描述符存储在fds数组作为返回参数（IPV6）
             fds[*count] = anetTcp6Server(server.neterr, port, server.bindaddr[j],
                                          server.tcp_backlog);
         } else {
             /* Bind IPv4 address. */
+            //如果没有 : 而且还有 IP 那就是 IPV4
+            /* Bind IPv4 address. */
+            //创建socket并启动监听，文件描述符存储在fds数组作为返回参数（IPV4）
             fds[*count] = anetTcpServer(server.neterr, port, server.bindaddr[j],
                                         server.tcp_backlog);
         }
@@ -2819,6 +2838,7 @@ int listenToPort(int port, int *fds, int *count) {
                 continue;
             return C_ERR;
         }
+        //设置socket 为非阻塞
         anetNonBlock(NULL, fds[*count]);
         (*count)++;
     }
@@ -3076,10 +3096,15 @@ void initServer(void) {
     /* Create an event handler for accepting new connections in TCP and Unix
      * domain sockets. */
     /**
-     * 创建ae文件事件，对redis的TCP或者unixsocket端口进行监听，使用相应的处理函数注册。每次得到clients连接后，都会触发ae文件事件，异步接收命令。
+     * TODO 创建ae文件事件，对redis的TCP或者unixsocket端口进行监听，使用相应的处理函数注册。每次得到clients连接后，都会触发ae文件事件，异步接收命令。
      * 如果server.ipfd(tcp/ip文件描述,类似于windows下的handle)有值,也即tcp/ip套接字创建成功的情况下,创建网络事件。在有连接请求进来后，acceptTcpHandler将会被调用，
      * 该函数调用accept接收连接，然后用accept函数返回的文件描述符创建一个client桩（一个redisClient对象），在server端代表连接进来的真正client。在创建client桩的时候，
      * 会将返回的这个描述符同样添加进事件监控列表，监控READABLE事件，事件发生代表着客户端发送数据过来，此时调readQueryFromClient接收客户端的query。
+     * 对IP socket 创建文件事件.
+     *
+     *
+     * server结构体的ipfd_count字段存储创建的监听socket数目，ipfd数组存储的是所有监听socket文件描述符，需要遍历所有的监听socket，为其创建对应的文件事件。
+     * 可以看到监听事件的处理函数为acceptTcpHandler（后面的指令处理和这个函数有关），实现了socket连接请求的accept，以及客户端对象的创建。
      */
     for (j = 0; j < server.ipfd_count; j++) {
         if (aeCreateFileEvent(server.el, server.ipfd[j], AE_READABLE,
@@ -3088,7 +3113,7 @@ void initServer(void) {
                     "Unrecoverable error creating server.ipfd file event.");
         }
     }
-
+    //对 tls 创建文件事件
     for (j = 0; j < server.tlsfd_count; j++) {
         if (aeCreateFileEvent(server.el, server.tlsfd[j], AE_READABLE,
                               acceptTLSHandler, NULL) == AE_ERR) {
@@ -3463,10 +3488,12 @@ void call(client *c, int flags) {
     redisOpArray prev_also_propagate = server.also_propagate;
     redisOpArrayInit(&server.also_propagate);
 
-    /* Call the command. */
+    /* Call the command.执行命令 */
     dirty = server.dirty;
     updateCachedTime(0);
+    //计时
     start = server.ustime;
+    //执行命令
     c->cmd->proc(c);
     duration = ustime() - start;
     dirty = server.dirty - dirty;
@@ -3492,7 +3519,9 @@ void call(client *c, int flags) {
     if (flags & CMD_CALL_SLOWLOG && !(c->cmd->flags & CMD_SKIP_SLOWLOG)) {
         char *latency_event = (c->cmd->flags & CMD_FAST) ?
                               "fast-command" : "command";
+        //AOF持久化相关
         latencyAddSampleIfNeeded(latency_event, duration / 1000);
+        //记录慢查询日志
         slowlogPushEntryIfNeeded(c, c->argv, c->argc, duration);
     }
 
@@ -3613,6 +3642,7 @@ void rejectCommand(client *c, robj *reply) {
 }
 
 void rejectCommandFormat(client *c, const char *fmt, ...) {
+    //如果找不到返回错误
     flagTransaction(c);
     va_list ap;
     va_start(ap, fmt);
@@ -3643,7 +3673,8 @@ int processCommand(client *c) {
     /* The QUIT command is handled separately. Normal command procs will
      * go through checking for replication and QUIT will cause trouble
      * when FORCE_REPLICATION is enabled and would be implemented in
-     * a regular command proc. */
+     * a regular command proc.
+     * 如果是quit命令直接返回并且关闭客户端*/
     if (!strcasecmp(c->argv[0]->ptr, "quit")) {
         addReply(c, shared.ok);
         c->flags |= CLIENT_CLOSE_AFTER_REPLY;
@@ -3651,19 +3682,22 @@ int processCommand(client *c) {
     }
 
     /* Now lookup the command and check ASAP about trivial error conditions
-     * such as wrong arity, bad command name and so forth. */
+     * such as wrong arity, bad command name and so forth.
+     * 如果命令不存在或者参数错误返回错误 */
     c->cmd = c->lastcmd = lookupCommand(c->argv[0]->ptr);
     if (!c->cmd) {
         sds args = sdsempty();
         int i;
         for (i = 1; i < c->argc && sdslen(args) < 128; i++)
             args = sdscatprintf(args, "`%.*s`, ", 128 - (int) sdslen(args), (char *) c->argv[i]->ptr);
+        // 如果找不到返回错误
         rejectCommandFormat(c, "unknown command `%s`, with args beginning with: %s",
                             (char *) c->argv[0]->ptr, args);
         sdsfree(args);
         return C_OK;
     } else if ((c->cmd->arity > 0 && c->cmd->arity != c->argc) ||
                (c->argc < -c->cmd->arity)) {
+        // 如果找不到返回错误
         rejectCommandFormat(c, "wrong number of arguments for '%s' command",
                             c->cmd->name);
         return C_OK;
@@ -3679,10 +3713,11 @@ int processCommand(client *c) {
                                  (c->cmd->proc == execCommand && (c->mstate.cmd_inv_flags & CMD_LOADING));
 
     /* Check if the user is authenticated. This check is skipped in case
-     * the default user is flagged as "nopass" and is active. */
+     * the default user is flagged as "nopass" and is active.检查用户是否经过身份验证。如果默认用户被标记为“nopass”并处于活动状态，则跳过此检查。 */
     int auth_required = (!(DefaultUser->flags & USER_FLAG_NOPASS) ||
                          (DefaultUser->flags & USER_FLAG_DISABLED)) &&
                         !c->authenticated;
+    //需要认证的情况下只能使用 auth  和 hello
     if (auth_required) {
         /* AUTH and HELLO and no auth modules are valid even in
          * non-authenticated state. */
@@ -3712,7 +3747,11 @@ int processCommand(client *c) {
     /* If cluster is enabled perform the cluster redirection here.
      * However we don't perform the redirection if:
      * 1) The sender of this command is our master.
-     * 2) The command has no key arguments. */
+     * 2) The command has no key arguments.
+     *如果启用了集群，请在这里执行集群重定向。然而，我们不执行重定向，如果:
+     *  1)发出这条命令的人是master。
+     *  2)命令没有关键参数。
+     **/
     if (server.cluster_enabled &&
         !(c->flags & CLIENT_MASTER) &&
         !(c->flags & CLIENT_LUA &&
@@ -3740,10 +3779,13 @@ int processCommand(client *c) {
      * the event loop since there is a busy Lua script running in timeout
      * condition, to avoid mixing the propagation of scripts with the
      * propagation of DELs due to eviction. */
+    // 拒绝执行带有m标识的命令，到内存到达上限的时候的内存保护机制
     if (server.maxmemory && !server.lua_timedout) {
+        //先调用freeMemoryIfNeededAndSafe进行一次内存释放
         int out_of_memory = freeMemoryIfNeededAndSafe() == C_ERR;
         /* freeMemoryIfNeeded may flush slave output buffers. This may result
          * into a slave, that may be the active client, to be freed. */
+        //释放内存可能会清空主从同步slave的缓冲区，这可能会导致释放一个活跃的slave客户端
         if (server.current_client == NULL) return C_ERR;
 
         int reject_cmd_on_oom = is_denyoom_command;
@@ -3752,6 +3794,8 @@ int processCommand(client *c) {
          * However, we never want to reject DISCARD, or even EXEC (unless it
          * contains denied commands, in which case is_denyoom_command is already
          * set. */
+        //当内存释放也不能解决内存问题的时候，客户端试图执行命令在OOM的情况下被拒绝
+        // 或者客户端处于MULTI/EXEC的上下文中
         if (c->flags & CLIENT_MULTI &&
             c->cmd->proc != execCommand &&
             c->cmd->proc != discardCommand) {
@@ -3759,6 +3803,7 @@ int processCommand(client *c) {
         }
 
         if (out_of_memory && reject_cmd_on_oom) {
+            //回复的内容OOM
             rejectCommand(c, shared.oomerr);
             return C_OK;
         }
@@ -3772,11 +3817,11 @@ int processCommand(client *c) {
     }
 
     /* Make sure to use a reasonable amount of memory for client side
-     * caching metadata. */
+     * caching metadata. 请确保为客户端缓存元数据使用合理的内存*/
     if (server.tracking_clients) trackingLimitUsedSlots();
 
     /* Don't accept write commands if there are problems persisting on disk
-     * and if this is a master instance. */
+     * and if this is a master instance. 持久化校验*/
     int deny_write_type = writeCommandsDeniedByDiskError();
     if (deny_write_type != DISK_ERROR_TYPE_NONE &&
         server.masterhost == NULL &&
@@ -3791,7 +3836,7 @@ int processCommand(client *c) {
     }
 
     /* Don't accept write commands if there are not enough good slaves and
-     * user configured the min-slaves-to-write option. */
+     * user configured the min-slaves-to-write option.主从复制校验 */
     if (server.masterhost == NULL &&
         server.repl_min_slaves_to_write &&
         server.repl_min_slaves_max_lag &&
@@ -3866,13 +3911,21 @@ int processCommand(client *c) {
         return C_OK;
     }
 
-    /* Exec the command */
+    /* Exec the command 执行命令
+     * 执行命令，前面已经把找到的命令放到了client 的cmd里面了
+     * 如果当前开启事务，命令会被添加到commands队列中去
+     * 这里也发现 exec multi watch discard的命令是不用进入队列的，因为需要直接执行
+     * */
     if (c->flags & CLIENT_MULTI &&
         c->cmd->proc != execCommand && c->cmd->proc != discardCommand &&
         c->cmd->proc != multiCommand && c->cmd->proc != watchCommand) {
+        //将命令添加到待执行队列中,证明Redis会使用事务的方式执行指令
         queueMultiCommand(c);
         addReply(c, shared.queued);
     } else {
+        // 不进入队列的直接执行
+        // 最终执行命令是在call中调用的，在call中会执行命令，并且计时，如果指令执行时间过长，会作为慢查询记录到日志中去。执行完成后如果有必要还需要更新统计信息，
+        // 记录慢查询日志，AOF持久化该命令请求，传播命令请求给所有的从服务器等。
         call(c, CMD_CALL_FULL);
         c->woff = server.master_repl_offset;
         if (listLength(server.ready_keys))
@@ -5446,6 +5499,7 @@ int main(int argc, char **argv) {
             }
         }
     } else {
+        // 多线程模式初始化
         InitServerLast();
         sentinelIsRunning();
         if (server.supervised_mode == SUPERVISED_SYSTEMD) {
