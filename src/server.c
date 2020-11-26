@@ -2906,8 +2906,7 @@ void initServer(void) {
      * setupSignalHandlers函数处理的信号分两类：
      *  1）SIGTERM。SIGTERM是kill命令发送的系统默认终止信号。也就是我们在试图结束server时会触发的信号。对这类信号，redis并没有立即终止进程，其处理行为是，
      *   设置一个server.shutdown_asap，然后在下一次执行serverCron时，调用prepareForShutdown做清理工作，然后再退出程序。这样可以有效的避免盲目的kill程序导致数据丢失，
-     *   使得server可以优雅的退出。
-     *  2）SIGSEGV、SIGBUS、SIGFPE、SIGILL。这几个信号分别为无效内存引用（即我们常说的段错误），实现定义的硬件故障，算术运算错误（如除0）以及执行非法硬件指令。
+      *  2）SIGSEGV、SIGBUS、SIGFPE、SIGILL。这几个信号分别为无效内存引用（即我们常说的段错误），实现定义的硬件故障，算术运算错误（如除0）以及执行非法硬件指令。
      *   这类是非常严重的错误，redis的处理是通过sigsegvHandler，记录出错时的现场、执行必要的清理工作，然后kill自身。除上面提到的7个信号意外，redis不再处理任何其他信号，
      *   均保留默认操作。
      */

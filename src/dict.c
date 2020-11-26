@@ -319,7 +319,7 @@ dictEntry *dictAddRaw(dict *d, void *key, dictEntry **existing) {
     long index;
     dictEntry *entry;
     dictht *ht;
-
+// 判断是否需要rehash
     if (dictIsRehashing(d)) _dictRehashStep(d);
 
     /* Get the index of the new element, or -1 if
