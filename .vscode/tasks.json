@@ -1,0 +1,19 @@
+{
+    "version":"2.0.0",
+    "tasks":[
+        {
+            "label":"Build",
+            "type":"shell",
+            "command":"/usr/bin/make",
+            "args":[
+                    "MALLOC=libc",
+                    "CFLAGS=\"-g  -O0 \""
+
+            ]
+        }
+    ]
+
+    
+
+
+}

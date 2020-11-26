@@ -1758,7 +1758,8 @@ void databasesCron(void) {
  * virtual memory and aging there is to store the current time in objects at
  * every object access, and accuracy is not needed. To access a global var is
  * a lot faster than calling time(NULL).
- * (我们在全局状态中获取unix时间的缓存值，因为使用虚拟内存和老化，在每次对象访问时都要将当前时间存储在对象中，因此不需要准确性。访问一个全局变量比调用time(NULL)要快得多.)
+ * (我们在全局状态中获取unix时间的缓存值，因为使用虚拟内存和老化，在每次对象访问时都要将当前时间存储在对象中，因此不需要准确性。
+ * 访问一个全局变量比调用time(NULL)要快得多.)
  * This function should be fast because it is called at every command execution
  * in call(), so it is possible to decide if to update the daylight saving
  * info or not using the 'update_daylight_info' argument. Normally we update
@@ -2392,7 +2393,9 @@ void createSharedObjects(void) {
  */
 void initServerConfig(void) {
     int j;
-
+    /**
+     * 设置缓存时间，使用时直接获取避免每次创建
+     */
     updateCachedTime(1);
     getRandomHexChars(server.runid, CONFIG_RUN_ID_SIZE);
     server.runid[CONFIG_RUN_ID_SIZE] = '\0';
