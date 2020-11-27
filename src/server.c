@@ -2399,8 +2399,8 @@ void initServerConfig(void) {
     updateCachedTime(1);
     getRandomHexChars(server.runid, CONFIG_RUN_ID_SIZE);
     server.runid[CONFIG_RUN_ID_SIZE] = '\0';
-    changeReplicationId();
-    clearReplicationId2();
+    changeReplicationId();// 每次启动在初始化时更改当前实例的切片ID，因此从节点重启时关系到psync 操作
+    clearReplicationId2();// 与全量同步时的offset 相关的
     server.hz = CONFIG_DEFAULT_HZ; /* Initialize it ASAP, even if it may get
                                       updated later after loading the config.
                                       This value may be used before the server
@@ -2408,13 +2408,13 @@ void initServerConfig(void) {
     server.timezone = getTimeZone(); /* Initialized by tzset(). */
     server.configfile = NULL;
     server.executable = NULL;
-    // 一个经典的办法，判断当前执行环境是多少位。
+    // 判断当前执行环境是多少位。
     server.arch_bits = (sizeof(long) == 8) ? 64 : 32;
     server.bindaddr_count = 0;
     server.unixsocketperm = CONFIG_DEFAULT_UNIX_SOCKET_PERM;
-    server.ipfd_count = 0;
+    server.ipfd_count = 0;// 在ipfd 数组中使用的槽 数量
     server.tlsfd_count = 0;
-    server.sofd = -1;
+    server.sofd = -1;//套接字描述符
     server.active_expire_enabled = 1;
     // 客户端查询缓存最大长度，默认1G
     server.client_max_querybuf_len = PROTO_MAX_QUERYBUF_LEN;
@@ -2439,7 +2439,7 @@ void initServerConfig(void) {
     server.notify_keyspace_events = 0;
     server.blocked_clients = 0;
     memset(server.blocked_clients_by_type, 0,
-           sizeof(server.blocked_clients_by_type));
+           sizeof(server.blocked_clients_by_type)); // linux 申请新内存空间之前的初始化
     server.shutdown_asap = 0;
     server.cluster_configfile = zstrdup(CONFIG_DEFAULT_CLUSTER_CONFIG_FILE);
     server.cluster_module_flags = CLUSTER_MODULE_FLAG_NONE;
@@ -2455,7 +2455,7 @@ void initServerConfig(void) {
     appendServerSaveParams(300, 100);  /* save after 5 minutes and 100 changes */
     appendServerSaveParams(60, 10000); /* save after 1 minute and 10000 changes */
 
-    /* Replication related */
+    /* Replication related(复制相关) */
     server.masterauth = NULL;
     server.masterhost = NULL;
     server.masterport = 6379;
@@ -2954,16 +2954,16 @@ void initServer(void) {
         exit(1);
     }
     /**
-     * 初始化共享对象,主要是设置redis.c里的全局对象structsharedObjectsStructshared的属性赋初值。Redis出于性能的考虑，把一些server执行过程中经常用到的对象构造出来，
+     * TODO 初始化共享对象,主要是设置redis.c里的全局对象structsharedObjectsStructshared的属性赋初值。Redis出于性能的考虑，把一些server执行过程中经常用到的对象构造出来，
      * 放到内存中，使用到的时候直接从这里取，避免临时申请的开销。比如“+OK”反馈，错误反馈，1~10000的整数对象等等。
      */
     createSharedObjects();
     /**
-     * 获取最大打开文件数目，根据这个打开文件最大数，适当调整同时支持的客户端数server.maxclients 变量。
+     * TODO 获取最大打开文件数目，根据这个打开文件最大数，适当调整同时支持的客户端数server.maxclients 变量。
      */
     adjustOpenFilesLimit();
     /**
-     * 创建事件循环aeCreateEventLoop ()函数先创建一个结构aeEventLoop的指针变量eventLoop，并从堆中申请内存，把这个结构的一些成员赋初始值，
+     * TODO 创建事件循环aeCreateEventLoop ()函数先创建一个结构aeEventLoop的指针变量eventLoop，并从堆中申请内存，把这个结构的一些成员赋初始值，
      * 创建aeApiState结构指针变量state，并创建epool，并把fd赋给state->epfd，最后把state赋给eventLoop->apidata。
      */
     server.el = aeCreateEventLoop(server.maxclients + CONFIG_FDSET_INCR);
@@ -2976,7 +2976,7 @@ void initServer(void) {
     // 根据服务器配置分配数据库内存
     server.db = zmalloc(sizeof(redisDb) * server.dbnum);
 
-    /* Open the TCP listening socket for the user commands. */
+    /* TODO Open the TCP listening socket for the user commands. */
     if (server.port != 0 &&
         listenToPort(server.port, server.ipfd, &server.ipfd_count) == C_ERR)
         exit(1);
@@ -3089,7 +3089,7 @@ void initServer(void) {
     /* Create the timer callback, this is our way to process many background
      * operations incrementally, like clients timeout, eviction of unaccessed
      * expired keys and so forth. */
-    // 【非常重要】创建一个ae定时事件，加到server.el->timeEventHead的头部，并将serverCron设置为这个定时事件的处理函数。这是redis的核心循环，该过程是serverCron，每秒调用次数由一个叫REDIS_HZ的宏决定，默认是每10微秒超时，即每10微秒该ae时间事件处理过程serverCron会被过期调用
+    // TODO【非常重要】创建一个ae定时事件，加到server.el->timeEventHead的头部，并将serverCron设置为这个定时事件的处理函数。这是redis的核心循环，该过程是serverCron，每秒调用次数由一个叫REDIS_HZ的宏决定，默认是每10微秒超时，即每10微秒该ae时间事件处理过程serverCron会被过期调用
     if (aeCreateTimeEvent(server.el, 1, serverCron, NULL, NULL) == AE_ERR) {
         serverPanic("Can't create event loop timers.");
         exit(1);
@@ -3138,7 +3138,9 @@ void initServer(void) {
     }
 
     /* Register before and after sleep handlers (note this needs to be done
-     * before loading persistence since it is used by processEventsWhileBlocked. */
+     * before loading persistence since it is used by processEventsWhileBlocked. （在睡眠处理程序之前和之后注册(注意这需要在加载持久性之前完成，因为它被processeventswhile阻塞使用。）
+     * TODO 增加sleep 前执行逻辑，和sleep后 执行逻辑
+     * */
     aeSetBeforeSleepProc(server.el, beforeSleep);
     aeSetAfterSleepProc(server.el, afterSleep);
 
@@ -3166,8 +3168,8 @@ void initServer(void) {
         server.maxmemory = 3072LL * (1024 * 1024); /* 3 GB */
         server.maxmemory_policy = MAXMEMORY_NO_EVICTION;
     }
-    // 如果集群模式已打开，那么初始化集群
-    if (server.cluster_enabled) clusterInit();
+    // TODO 如果集群模式已打开，那么初始化集群
+    if (server.cluster_enabled) {clusterInit();}
     // 初始化脚本系统。Redis的脚本系统用的是lua语言。
     replicationScriptCacheInit();
     scriptingInit(1);

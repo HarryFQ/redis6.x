@@ -56,7 +56,7 @@ void updateLFU(robj *val) {
 
 /* Low level key lookup API, not actually called directly from commands
  * implementations that should instead rely on lookupKeyRead(),
- * lookupKeyWrite() and lookupKeyReadWithFlags(). */
+ * lookupKeyWrite() and lookupKeyReadWithFlags(). (低级键查找API，实际上不是直接从命令实现中调用的，而应该依赖于lookupKeyRead()、lookupKeyWrite()和lookupKeyReadWithFlags()。)*/
 robj *lookupKey(redisDb *db, robj *key, int flags) {
     dictEntry *de = dictFind(db->dict,key->ptr);
     if (de) {
@@ -190,7 +190,7 @@ void dbAdd(redisDb *db, robj *key, robj *val) {
         val->type == OBJ_ZSET ||
         val->type == OBJ_STREAM)
         signalKeyAsReady(db, key);
-    if (server.cluster_enabled) slotToKeyAdd(key->ptr);
+    if (server.cluster_enabled) slotToKeyAdd(key->ptr);// 集群模式下key
 }
 
 /* This is a special version of dbAdd() that is used only when loading
@@ -236,11 +236,11 @@ void dbOverwrite(redisDb *db, robj *key, robj *val) {
 }
 
 /* High level Set operation. This function can be used in order to set
- * a key, whatever it was existing or not, to a new object.
+ * a key, whatever it was existing or not, to a new object.(高水平集操作。这个函数可以用来为一个新对象设置键，无论键是否存在。)
  *
- * 1) The ref count of the value object is incremented.
- * 2) clients WATCHing for the destination key notified.
- * 3) The expire time of the key is reset (the key is made persistent),
+ * 1) The ref count of the value object is incremented. (值对象的ref计数递增。)
+ * 2) clients WATCHing for the destination key notified.(客户端监视目标键通知。)
+ * 3) The expire time of the key is reset (the key is made persistent),(重置key的过期时间(使key持久)，除非“keepttl”是true。)
  *    unless 'keepttl' is true.
  *
  * All the new keys in the database should be created via this interface.
@@ -1665,7 +1665,7 @@ int *xreadGetKeys(struct redisCommand *cmd, robj **argv, int argc, int *numkeys)
 /* Slot to Key API. This is used by Redis Cluster in order to obtain in
  * a fast way a key that belongs to a specified hash slot. This is useful
  * while rehashing the cluster and in other conditions when we need to
- * understand if we have keys for a given hash slot. */
+ * understand if we have keys for a given hash slot. （槽的key API。这是Redis集群用来快速获取一个属于指定哈希槽的键。在对集群进行重散列时，以及在其他需要了解是否有给定散列槽的键的情况下，这是非常有用的。）*/
 void slotToKeyUpdateKey(sds key, int add) {
     size_t keylen = sdslen(key);
     unsigned int hashslot = keyHashSlot(key,keylen);

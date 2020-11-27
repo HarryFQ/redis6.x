@@ -73,7 +73,7 @@ static int checkStringLength(client *c, long long size) {
 void setGenericCommand(client *c, int flags, robj *key, robj *val, robj *expire, int unit, robj *ok_reply, robj *abort_reply) {
     long long milliseconds = 0; /* initialized to avoid any harmness warning */
 
-    if (expire) {
+    if (expire) {// 判断是否有过期时间设置：0 没有；1有
         if (getLongLongFromObjectOrReply(c, expire, &milliseconds, NULL) != C_OK)
             return;
         if (milliseconds <= 0) {
@@ -91,7 +91,7 @@ void setGenericCommand(client *c, int flags, robj *key, robj *val, robj *expire,
     }
     genericSetKey(c,c->db,key,val,flags & OBJ_SET_KEEPTTL,1);
     server.dirty++;
-    if (expire) setExpire(c,c->db,key,mstime()+milliseconds);
+    if (expire) setExpire(c,c->db,key,mstime()+milliseconds);// 设置过期事件
     notifyKeyspaceEvent(NOTIFY_STRING,"set",key,c->db->id);
     if (expire) notifyKeyspaceEvent(NOTIFY_GENERIC,
         "expire",key,c->db->id);

@@ -1003,9 +1003,9 @@ static unsigned long _dictNextPower(unsigned long size) {
  * a hash entry for the given 'key'.
  * If the key already exists, -1 is returned
  * and the optional output parameter may be filled.
- *
+ *(返回一个空闲槽的索引，该空闲槽可以用给定“key”的哈希填充。如果key已经存在，则返回-1，并填充可选的输出参数。)
  * Note that if we are in the process of rehashing the hash table, the
- * index is always returned in the context of the second (new) hash table. */
+ * index is always returned in the context of the second (new) hash table. (注意，如果我们正在对哈希表进行重新哈希，索引总是在第二个(新)哈希表的上下文中返回。)*/
 static long _dictKeyIndex(dict *d, const void *key, uint64_t hash, dictEntry **existing) {
     unsigned long idx, table;
     dictEntry *he;
