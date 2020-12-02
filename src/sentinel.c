@@ -477,12 +477,12 @@ void initSentinelConfig(void) {
     server.protected_mode = 0; /* Sentinel must be exposed. */
 }
 
-/* Perform the Sentinel mode initialization. */
+/* Perform the Sentinel mode initialization. (执行哨兵模式初始化。)*/
 void initSentinel(void) {
     unsigned int j;
 
     /* Remove usual Redis commands from the command table, then just add
-     * the SENTINEL command. */
+     * the SENTINEL command.(从命令表中删除常用的Redis命令，然后添加SENTINEL命令。执行哨兵模式初始化。) */
     dictEmpty(server.commands,NULL);
     for (j = 0; j < sizeof(sentinelcmds)/sizeof(sentinelcmds[0]); j++) {
         int retval;
@@ -492,7 +492,7 @@ void initSentinel(void) {
         serverAssert(retval == DICT_OK);
 
         /* Translate the command string flags description into an actual
-         * set of flags. */
+         * set of flags. (将命令字符串标志描述转换为一组实际的标志)*/
         if (populateCommandTableParseFlags(cmd,cmd->sflags) == C_ERR)
             serverPanic("Unsupported command flag");
     }

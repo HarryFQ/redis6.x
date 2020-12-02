@@ -139,7 +139,7 @@ unsigned long long estimateObjectIdleTime(robj *o) {
  * one key that can be evicted, if there is at least one key that can be
  * evicted in the whole database. */
 
-/* Create a new eviction pool. */
+/* Create a new eviction pool.创建一个新的回收池 */
 void evictionPoolAlloc(void) {
     struct evictionPoolEntry *ep;
     int j;

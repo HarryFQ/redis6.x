@@ -7384,18 +7384,18 @@ void moduleInitModulesSystem(void) {
         exit(1);
     }
     /* Make the pipe non blocking. This is just a best effort aware mechanism
-     * and we do not want to block not in the read nor in the write half. */
+     * and we do not want to block not in the read nor in the write half. (使管道不堵塞。这只是一种最好的感知机制，我们不希望在读和写的一半没有阻塞。)*/
     anetNonBlock(NULL,server.module_blocked_pipe[0]);
     anetNonBlock(NULL,server.module_blocked_pipe[1]);
 
-    /* Create the timers radix tree. */
+    /* Create the timers radix tree. (创建计时器基数树.)*/
     Timers = raxNew();
 
-    /* Setup the event listeners data structures. */
+    /* Setup the event listeners data structures.（设置事件监听器数据结构） */
     RedisModule_EventListeners = listCreate();
 
     /* Our thread-safe contexts GIL must start with already locked:
-     * it is just unlocked when it's safe. */
+     * it is just unlocked when it's safe. (我们的线程安全上下文GIL必须从已经锁定的上下文开始:它只有在安全的时候才被解锁。)*/
     pthread_mutex_lock(&moduleGIL);
 }
 

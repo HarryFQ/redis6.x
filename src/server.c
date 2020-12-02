@@ -2156,18 +2156,18 @@ extern int ProcessingEventsWhileBlocked;
 
 /* This function gets called every time Redis is entering the
  * main loop of the event driven library, that is, before to sleep
- * for ready file descriptors.
+ * for ready file descriptors.(这个函数在每次Redis进入事件驱动库的主循环时被调用，也就是说，在休眠准备好的文件描述符之前。)
  *
- * Note: This function is (currently) called from two functions:
- * 1. aeMain - The main server loop
- * 2. processEventsWhileBlocked - Process clients during RDB/AOF load
+ * Note: This function is (currently) called from two functions: （注意:该函数(当前)由两个函数调用:）
+ * 1. aeMain - The main server loop (1. aeMain -主服务器循环)
+ * 2. processEventsWhileBlocked - Process clients during RDB/AOF load (2. processeventswhile在RDB/AOF负载期间阻塞进程客户端)
  *
  * If it was called from processEventsWhileBlocked we don't want
  * to perform all actions (For example, we don't want to expire
- * keys), but we do need to perform some actions.
+ * keys), but we do need to perform some actions.（如果它是从processEventsWhileBlocked调用的，我们不想执行所有的操作(例如，我们不想让键过期)，但是我们确实需要执行一些操作。）
  *
  * The most important is freeClientsInAsyncFreeQueue but we also
- * call some other low-risk functions. */
+ * call some other low-risk functions. (最重要的是freeClientsInAsyncFreeQueue，但我们也调用一些其他低风险函数。)*/
 void beforeSleep(struct aeEventLoop *eventLoop) {
     UNUSED(eventLoop);
 
@@ -2175,7 +2175,7 @@ void beforeSleep(struct aeEventLoop *eventLoop) {
      * the event loop from processEventsWhileBlocked(). Note that in this
      * case we keep track of the number of events we are processing, since
      * processEventsWhileBlocked() wants to stop ASAP if there are no longer
-     * events to handle. */
+     * events to handle. （只需调用重要函数的子集，以防我们从processEventsWhileBlocked()重新进入事件循环。注意，在本例中，我们跟踪正在处理的事件数量，因为processeventswhile()希望在不再有需要处理的事件时尽快停止）*/
     if (ProcessingEventsWhileBlocked) {
         uint64_t processed = 0;
         processed += handleClientsWithPendingReadsUsingThreads();
@@ -2186,13 +2186,13 @@ void beforeSleep(struct aeEventLoop *eventLoop) {
         return;
     }
 
-    /* Handle precise timeouts of blocked clients. */
+    /* Handle precise timeouts of blocked clients.(处理阻塞客户端的精确超时。) */
     handleBlockedClientsTimeout();
 
-    /* We should handle pending reads clients ASAP after event loop. */
+    /* We should handle pending reads clients ASAP after event loop. （我们应该在事件循环后尽快处理等待的读取客户端。）*/
     handleClientsWithPendingReadsUsingThreads();
 
-    /* Handle TLS pending data. (must be done before flushAppendOnlyFile) */
+    /* Handle TLS pending data. (must be done before flushAppendOnlyFile) 在刷盘之前停止*/
     tlsProcessPendingData();
 
     /* If tls still has pending unread data don't sleep at all. */
@@ -2201,16 +2201,16 @@ void beforeSleep(struct aeEventLoop *eventLoop) {
     /* Call the Redis Cluster before sleep function. Note that this function
      * may change the state of Redis Cluster (from ok to fail or vice versa),
      * so it's a good idea to call it before serving the unblocked clients
-     * later in this function. */
+     * later in this function.(调用Redis集群before sleep函数。注意，这个函数可能会改变Redis集群的状态(从ok到fail或反之)，所以在这个函数中服务未阻塞的客户端之前调用它是一个好主意。我们应该在事件循环后尽快处理等待的读取客户端。) */
     if (server.cluster_enabled) clusterBeforeSleep();
 
     /* Run a fast expire cycle (the called function will return
-     * ASAP if a fast cycle is not needed). */
+     * ASAP if a fast cycle is not needed). (处理过期键)*/
     if (server.active_expire_enabled && server.masterhost == NULL)
         activeExpireCycle(ACTIVE_EXPIRE_CYCLE_FAST);
 
     /* Unblock all the clients blocked for synchronous replication
-     * in WAIT. */
+     * in WAIT.(解除在等待中为同步复制而阻塞的所有客户机的阻塞。唤醒因为复制而阻塞的客户端) */
     if (listLength(server.clients_waiting_acks))
         processClientsWaitingReplicas();
 
@@ -2241,16 +2241,16 @@ void beforeSleep(struct aeEventLoop *eventLoop) {
     }
 
     /* Send the invalidation messages to clients participating to the
-     * client side caching protocol in broadcasting (BCAST) mode. */
+     * client side caching protocol in broadcasting (BCAST) mode. (以广播(BCAST)模式将无效消息发送到参与客户端缓存协议的客户端。解除在等待中为同步复制而阻塞的所有客户机的阻塞。)*/
     trackingBroadcastInvalidationMessages();
 
-    /* Write the AOF buffer on disk */
+    /* Write the AOF buffer on disk (aof 刷盘)*/
     flushAppendOnlyFile(0);
 
-    /* Handle writes with pending output buffers. */
+    /* Handle writes with pending output buffers. (挂起输出缓冲区的句柄写操作。)*/
     handleClientsWithPendingWritesUsingThreads();
 
-    /* Close clients that need to be closed asynchronous */
+    /* Close clients that need to be closed asynchronous 异步关闭客户端 */
     freeClientsInAsyncFreeQueue();
 
     /* Before we are going to sleep, let the threads access the dataset by
@@ -2402,9 +2402,9 @@ void initServerConfig(void) {
     changeReplicationId();// 每次启动在初始化时更改当前实例的切片ID，因此从节点重启时关系到psync 操作
     clearReplicationId2();// 与全量同步时的offset 相关的
     server.hz = CONFIG_DEFAULT_HZ; /* Initialize it ASAP, even if it may get
-                                      updated later after loading the config.
+                                      updated later after loading the config.(尽快初始化它，即使它可能在稍后加载配置后被更新。)
                                       This value may be used before the server
-                                      is initialized. */
+                                      is initialized.(该值可以在服务器初始化之前使用。) */
     server.timezone = getTimeZone(); /* Initialized by tzset(). */
     server.configfile = NULL;
     server.executable = NULL;
@@ -2477,7 +2477,7 @@ void initServerConfig(void) {
     server.repl_backlog_off = 0;
     server.repl_no_slaves_since = time(NULL);
 
-    /* Client output buffer limits */
+    /* Client output buffer limits :3种，普通，事件，订阅*/
     for (j = 0; j < CLIENT_TYPE_OBUF_COUNT; j++)
         server.client_obuf_limits[j] = clientBufferLimitsDefaults[j];
 
@@ -2650,10 +2650,10 @@ int setOOMScoreAdj(int process_class) {
  * the configured max number of clients. It also reserves a number of file
  * descriptors (CONFIG_MIN_RESERVED_FDS) for extra operations of
  * persistence, listening sockets, log files and so forth.
- *
+ *(此函数将尝试将打开的文件的最大数量相应地提高到配置的最大客户端数量。它还保留了一些文件描述符(CONFIG_MIN_RESERVED_FDS)，用于额外的持久性操作、监听套接字、日志文件等等。)
  * If it will not be possible to set the limit accordingly to the configured
  * max number of clients, the function will do the reverse setting
- * server.maxclients to the value that we can actually handle. */
+ * server.maxclients to the value that we can actually handle. (如果不能根据所配置的最大客户端数量相应地设置限制，该函数将反向设置服务器。maxclients到我们可以实际操作的值。将命令字符串标志描述转换为一组实际的标志。)*/
 void adjustOpenFilesLimit(void) {
     rlim_t maxfiles = server.maxclients + CONFIG_MIN_RESERVED_FDS;
     struct rlimit limit;
@@ -2904,7 +2904,7 @@ void initServer(void) {
     signal(SIGPIPE, SIG_IGN);
     /**
      * setupSignalHandlers函数处理的信号分两类：
-     *  1）SIGTERM。SIGTERM是kill命令发送的系统默认终止信号。也就是我们在试图结束server时会触发的信号。对这类信号，redis并没有立即终止进程，其处理行为是，
+     *  1）SIGTERM。SIGTERM是kill命令发送的系统默认终止信号。也就是我们在试图结束server时会触发的信号。对这类信号，redis���没有立即终止进程，其处理行为是，
      *   设置一个server.shutdown_asap，然后在下一次执行serverCron时，调用prepareForShutdown做清理工作，然后再退出程序。这样可以有效的避免盲目的kill程序导致数据丢失，
       *  2）SIGSEGV、SIGBUS、SIGFPE、SIGILL。这几个信号分别为无效内存引用（即我们常说的段错误），实现定义的硬件故障，算术运算错误（如除0）以及执行非法硬件指令。
      *   这类是非常严重的错误，redis的处理是通过sigsegvHandler，记录出错时的现场、执行必要的清理工作，然后kill自身。除上面提到的7个信号意外，redis不再处理任何其他信号，
@@ -3169,7 +3169,9 @@ void initServer(void) {
         server.maxmemory_policy = MAXMEMORY_NO_EVICTION;
     }
     // TODO 如果集群模式已打开，那么初始化集群
-    if (server.cluster_enabled) {clusterInit();}
+    if (server.cluster_enabled) {
+        clusterInit();
+    }
     // 初始化脚本系统。Redis的脚本系统用的是lua语言。
     replicationScriptCacheInit();
     scriptingInit(1);
@@ -5286,7 +5288,7 @@ int main(int argc, char **argv) {
     int j;
 
 #ifdef REDIS_TEST
-                                                                                                                            if (argc == 3 && !strcasecmp(argv[1], "test")) {
+        if (argc == 3 && !strcasecmp(argv[1], "test")) {
         if (!strcasecmp(argv[2], "ziplist")) {
             return ziplistTest(argc, argv);
         } else if (!strcasecmp(argv[2], "quicklist")) {
@@ -5351,7 +5353,7 @@ int main(int argc, char **argv) {
     if (server.sentinel_mode) {
         //initSentinelConfig();位于sentinel.c文件，设置监视端口为26379；
         initSentinelConfig();
-        // initSentinel()位于sentinel.c文件，清空服务器的命令表，并加入SENTINEL命令。并初始化sentinel全局变量，这个变量时一个sentinelState类型，分析到监视模式会详细深入。
+        // initSentinel()位于sentinel.c文件，清空服务器的命令表，并加入SENTINEL命令。并初始化sentinel全局变量，这个变量时一个sentinelState类型，哨兵模式会详细深入。
         initSentinel();
     }
 
