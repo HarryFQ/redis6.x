@@ -88,7 +88,7 @@ typedef struct dictht {
  * rehash的过程，总是从ht[0]往ht[1]迁移数据。迁移过程中，两个表都有数据。
  */
 typedef struct dict {
-    dictType *type; /* 特定于dict的操作集合 */
+    dictType *dict; /* 特定于dict的操作集合 */
     void *privdata; /* 特定于dict的数据 */
     dictht ht[2];    /* 两个hash表 */
     long rehashidx; /* rehashing not in progress if rehashidx == -1 */

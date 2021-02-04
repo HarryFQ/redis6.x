@@ -102,7 +102,7 @@ zskiplist *zslCreate(void) {
     zsl->level = 1;
     zsl->length = 0;
     // 头结点是一个特殊的结点，除了有64层，以及像普通节点一样分配内存外，同时还会初始化每一层的forward为空，score为0
-    //这里指定创建层数为64，score为0 ，sds为null
+    //这里指定创建层数为32，score为0 ，sds为null
     zsl->header = zslCreateNode(ZSKIPLIST_MAXLEVEL, 0, NULL);
     //循环遍历初始化每一层
     for (j = 0; j < ZSKIPLIST_MAXLEVEL; j++) {
@@ -144,27 +144,32 @@ void zslFree(zskiplist *zsl) {
  * The return value of this function is between 1 and ZSKIPLIST_MAXLEVEL
  * (both inclusive), with a powerlaw-alike distribution where higher
  * levels are less likely to be returned.
- *跳跃表生成层高实现，结点层高最小值为1 ，最大值为64 ，其中最大值是 ZSKIPLIST_MAXLEVEL(64) 跳跃表除了Header结点以外，其余的结点层高是随机的，
+ *跳跃表生成层高实现，结点层高最小值为1 ，最大值为32 ，其中最大值是 ZSKIPLIST_MAXLEVEL(64) 跳跃表除了Header结点以外，其余的结点层高是随机的，
  * */
 int zslRandomLevel(void) {
     //默认层高是1
     int level = 1;
-    // ZSKIPLIST_P 默认是 0.25
+    // ZSKIPLIST_P 默认是 0.25    0xFFFF=65535
     while ((random() & 0xFFFF) < (ZSKIPLIST_P * 0xFFFF))
         //层数加一
         level += 1;
-    return (level < ZSKIPLIST_MAXLEVEL) ? level : ZSKIPLIST_MAXLEVEL; //如果大于最大层数，则直接返回最大层数64
+    return (level < ZSKIPLIST_MAXLEVEL) ? level : ZSKIPLIST_MAXLEVEL; //如果大于最大层数，则直接返回最大层数32
 }
 
 /**
  * Insert a new node in the skiplist. Assumes the element does not already
  * exist (up to the caller to enforce that). The skiplist takes ownership
  * of the passed SDS string 'ele'. (在skiplist中插入一个新节点。假设元素不存在(取决于调用者是否强制执行)。skiplist获得传递的SDS字符串'ele'的所有权。)
+ * 插入步骤：
+ *  step1: 先通过两个循环找出新插入节点的所有前驱指针存储在update数组中
+ *  step2: 随机获取新节点所在的层高，使用的一个随机函数与 65535 再左移1/4 个65535
+ *  step3: 将新的节点插入到链表中。第一步，判断新节点所在的层高是否大于总的层高，如果大于则将大于的层的头结点初始化，设置span;第二步，逐层遍历链表，将update 的后继节点添加到新节点的后集中，同时更新span.
+ *  step4: 调整层高，调整前驱，链表长度加一
  *
  **/
 zskiplistNode *zslInsert(zskiplist *zsl, double score, sds ele) {
     zskiplistNode *update[ZSKIPLIST_MAXLEVEL], *x;//update[] 记录插入结点时候，所涉及会影响到的结点位置的指针
-    unsigned int rank[ZSKIPLIST_MAXLEVEL];//rank[]：记录当前层从header结点到update[i]结点经理的步长
+    unsigned int rank[ZSKIPLIST_MAXLEVEL];//rank[]：记录当前层从header结点到update[i]结点经历的步长
     int i, level;
 
     serverAssert(!isnan(score));
@@ -214,7 +219,7 @@ zskiplistNode *zslInsert(zskiplist *zsl, double score, sds ele) {
 
         /* update span covered by update[i] as x is inserted here 插入节点*/
         x->level[i].span = update[i]->level[i].span - (rank[0] - rank[i]);
-        // 调整跳跃表高度
+        // 调整update span
         update[i]->level[i].span = (rank[0] - rank[i]) + 1;
     }
 
@@ -232,8 +237,11 @@ zskiplistNode *zslInsert(zskiplist *zsl, double score, sds ele) {
     return x;
 }
 
-/* Internal function used by zslDelete, zslDeleteRangeByScore and
- * zslDeleteRangeByRank. */
+/**
+ * Internal function used by zslDelete, zslDeleteRangeByScore and
+ * zslDeleteRangeByRank.
+ * 删除节点
+ **/
 void zslDeleteNode(zskiplist *zsl, zskiplistNode *x, zskiplistNode **update) {
     int i;
     for (i = 0; i < zsl->level; i++) {
@@ -254,14 +262,18 @@ void zslDeleteNode(zskiplist *zsl, zskiplistNode *x, zskiplistNode **update) {
     zsl->length--;
 }
 
-/* Delete an element with matching score/element from the skiplist.
+/** Delete an element with matching score/element from the skiplist.
  * The function returns 1 if the node was found and deleted, otherwise
  * 0 is returned.
  *
  * If 'node' is NULL the deleted node is freed by zslFreeNode(), otherwise
  * it is not freed (but just unlinked) and *node is set to the node pointer,
  * so that it is possible for the caller to reuse the node (including the
- * referenced SDS string at node->ele). */
+ * referenced SDS string at node->ele).
+ *通过score， ele 删除元素：
+ *  step1: 先找出所有符合元素的所有前驱 存储在update 数组中。
+ *  step2: 遍历update 数组，判断score 和ele 是否相等，相等就删除节点，如果传入的zskiplistNode 不为空则是释放空间，否则将每个查找的到的节点x 赋值给node
+ * */
 int zslDelete(zskiplist *zsl, double score, sds ele, zskiplistNode **node) {
     zskiplistNode *update[ZSKIPLIST_MAXLEVEL], *x;
     int i;
@@ -290,7 +302,8 @@ int zslDelete(zskiplist *zsl, double score, sds ele, zskiplistNode **node) {
     return 0; /* not found */
 }
 
-/* Update the score of an elmenent inside the sorted set skiplist.
+/**
+ * Update the score of an elmenent inside the sorted set skiplist. (更新排序集跳跃列表中元素的得分)
  * Note that the element must exist and must match 'score'.
  * This function does not update the score in the hash table side, the
  * caller should take care of it.
@@ -300,7 +313,14 @@ int zslDelete(zskiplist *zsl, double score, sds ele, zskiplistNode **node) {
  * Otherwise the skiplist is modified by removing and re-adding a new
  * element, which is more costly.
  *
- * The function returns the updated element skiplist node pointer. */
+ * The function returns the updated element skiplist node pointer.
+ * 根据Score, Ele 更新步骤：
+ *  step1: 根据score, ele 在zsl 中查找符合条件的node;
+ *  step2: 在查找到的后继节点中看新的score 是否在里面，如果在则直接返回，否则step3;
+ *  step3: 先删除旧的节点，然后通过插入方法插入将新更新的节点插入。
+ *
+ *
+ * */
 zskiplistNode *zslUpdateScore(zskiplist *zsl, double curscore, sds ele, double newscore) {
     zskiplistNode *update[ZSKIPLIST_MAXLEVEL], *x;
     int i;

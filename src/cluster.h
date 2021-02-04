@@ -247,28 +247,28 @@ union clusterMsgData {
 #define CLUSTER_PROTO_VER 1 /* Cluster bus protocol version. */
 
 typedef struct {
-    char sig[4];        /* Signature "RCmb" (Redis Cluster message bus). */
-    uint32_t totlen;    /* Total length of this message */
-    uint16_t ver;       /* Protocol version, currently set to 1. */
-    uint16_t port;      /* TCP base port number. */
-    uint16_t type;      /* Message type */
-    uint16_t count;     /* Only used for some kind of messages. */
-    uint64_t currentEpoch;  /* The epoch accordingly to the sending node. */
+    char sig[4];        /* Signature "RCmb" (Redis Cluster message bus).(信号标识) */
+    uint32_t totlen;    /* Total length of this message (消息总长度)*/
+    uint16_t ver;       /* Protocol version, currently set to 1. (协议版本)*/
+    uint16_t port;      /* TCP base port number. (基础端口)*/
+    uint16_t type;      /* Message type (消息类型)*/
+    uint16_t count;     /* Only used for some kind of messages.(消息体包含的节点数量) */
+    uint64_t currentEpoch;  /* The epoch accordingly to the sending node. (当前发送节点的配置纪元)*/
     uint64_t configEpoch;   /* The config epoch if it's a master, or the last
                                epoch advertised by its master if it is a
-                               slave. */
+                               slave.(主/从节点的主节点配置纪元) */
     uint64_t offset;    /* Master replication offset if node is a master or
-                           processed replication offset if node is a slave. */
-    char sender[CLUSTER_NAMELEN]; /* Name of the sender node */
-    unsigned char myslots[CLUSTER_SLOTS/8];
-    char slaveof[CLUSTER_NAMELEN];
-    char myip[NET_IP_STR_LEN];    /* Sender IP, if not all zeroed. */
-    char notused1[34];  /* 34 bytes reserved for future usage. */
-    uint16_t cport;      /* Sender TCP cluster bus port */
-    uint16_t flags;      /* Sender node flags */
-    unsigned char state; /* Cluster state from the POV of the sender */
-    unsigned char mflags[3]; /* Message flags: CLUSTERMSG_FLAG[012]_... */
-    union clusterMsgData data;
+                           processed replication offset if node is a slave.(复制偏移量) */
+    char sender[CLUSTER_NAMELEN]; /* Name of the sender node (发送节点的nodeId)*/
+    unsigned char myslots[CLUSTER_SLOTS/8]/*发送节点负责的槽信息*/;
+    char slaveof[CLUSTER_NAMELEN]/*(如果发送节点是从节点，记录对应主节点的nodeId)*/;
+    char myip[NET_IP_STR_LEN];    /* Sender IP, if not all zeroed. ()*/
+    char notused1[34];  /* 34 bytes reserved for future usage. ()*/
+    uint16_t cport;      /* Sender TCP cluster bus port (集群总线端口)*/
+    uint16_t flags;      /* Sender node flags (节点标识，区分主从角色，是否下线)*/
+    unsigned char state; /* Cluster state from the POV of the sender (发送节点所处的集群状态)*/
+    unsigned char mflags[3]; /* Message flags: CLUSTERMSG_FLAG[012]_... (标识信息)*/
+    union clusterMsgData data/*正文*/;
 } clusterMsg;
 
 #define CLUSTERMSG_MIN_LEN (sizeof(clusterMsg)-sizeof(union clusterMsgData))

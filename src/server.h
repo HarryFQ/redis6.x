@@ -904,7 +904,11 @@ struct sharedObjectsStruct {
     sds minstring, maxstring;
 };
 
-/* ZSETs use a specialized version of Skiplists */
+/**
+ * ZSETs use a specialized version of Skiplists
+ * 数据与指针分开存储
+ * 一个前驱指针，多个后继指针数组
+ **/
 typedef struct zskiplistNode {
     //用于存储字符串类型的数据
     sds ele;
