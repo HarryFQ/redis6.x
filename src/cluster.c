@@ -2082,7 +2082,7 @@ int clusterProcessPacket(clusterLink *link) {
         /* If our config epoch collides with the sender's try to fix
          * the problem. */
         if (sender &&
-            nodeIsMaster(myself) && nodeIsMaster(sender) &&
+            nodeIsMaster(myself) && nodeIsMaster(sender)
             senderConfigEpoch == myself->configEpoch)
         {
             clusterHandleConfigEpochCollision(sender);

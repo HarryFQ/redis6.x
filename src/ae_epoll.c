@@ -31,6 +31,29 @@
 
 #include <sys/epoll.h>
 
+/**
+ * epoll:
+ * 1. 四个函数
+ * 1.1 epoll_create(int size)函数：
+ *      该 函数生成一个epoll专用的文件描述符。它其实是在内核申请一空间，用来存放你想关注的socket fd上是否发生以及发生了什么事件。size就是你在这个epoll fd上能关注的最大socket fd数。
+ * 1.2 epoll_ctl(int epfd, int op, int fd, struct epoll_event *event)函数:
+ *      该函数用于控制某个epoll文件描述符上的事件，可以注册事件，修改事件，删除事件。
+ *      epfd：由 epoll_create 生成的epoll专用的文件描述符；
+ *      op：要进行的操作例如注册事件，可能的取值EPOLL_CTL_ADD 注册、EPOLL_CTL_MOD 修 改、EPOLL_CTL_DEL 删除
+ *      fd：关联的文件描述符；
+ *      event：指向epoll_event的指针；如果调用成功返回0,不成功返回-1
+ *1.3 epoll_wait(int epfd, struct epoll_event * events, int maxevents, int timeout);
+ *    该函数用于轮询I/O事件的发生；
+ *    参数：
+ *    epfd:由epoll_create 生成的epoll专用的文件描述符；
+ *    epoll_event:用于回传代处理事件的数组；
+ *    maxevents:每次能处理的事件数；
+ *    timeout:等待I/O事件发生的超时值(单位我也不太清楚)；-1相当于阻塞，0相当于非阻塞。一般用-1即可
+ *    返回发生事件数。
+ *两种工作模式：
+ *  Edge Triggered(ET)： 高速工作方式，错误率比较大，只支持no_block socket (非阻塞socket)
+ *  LevelTriggered(LT)： 缺省工作方式，即默认的工作方式,支持blocksocket和no_blocksocket，错误率比较小。
+ */
 typedef struct aeApiState {
     int epfd;
     struct epoll_event *events;
@@ -45,7 +68,7 @@ static int aeApiCreate(aeEventLoop *eventLoop) {
     aeApiState *state = zmalloc(sizeof(aeApiState));
 
     if (!state) return -1;
-    state->events = zmalloc(sizeof(struct epoll_event)*eventLoop->setsize);
+    state->events = zmalloc(sizeof(struct epoll_event) * eventLoop->setsize);
     if (!state->events) {
         zfree(state);
         return -1;
@@ -63,7 +86,7 @@ static int aeApiCreate(aeEventLoop *eventLoop) {
 static int aeApiResize(aeEventLoop *eventLoop, int setsize) {
     aeApiState *state = eventLoop->apidata;
 
-    state->events = zrealloc(state->events, sizeof(struct epoll_event)*setsize);
+    state->events = zrealloc(state->events, sizeof(struct epoll_event) * setsize);
     return 0;
 }
 
@@ -88,14 +111,14 @@ static int aeApiAddEvent(aeEventLoop *eventLoop, int fd, int mask) {
     /* If the fd was already monitored for some event, we need a MOD
      * operation. Otherwise we need an ADD operation. */
     int op = eventLoop->events[fd].mask == AE_NONE ?
-            EPOLL_CTL_ADD : EPOLL_CTL_MOD;
+             EPOLL_CTL_ADD : EPOLL_CTL_MOD;
 
     ee.events = 0;
     mask |= eventLoop->events[fd].mask; /* Merge old events */
     if (mask & AE_READABLE) ee.events |= EPOLLIN;
     if (mask & AE_WRITABLE) ee.events |= EPOLLOUT;
     ee.data.fd = fd;
-    if (epoll_ctl(state->epfd,op,fd,&ee) == -1) return -1;
+    if (epoll_ctl(state->epfd, op, fd, &ee) == -1) return -1;
     return 0;
 }
 
@@ -115,11 +138,11 @@ static void aeApiDelEvent(aeEventLoop *eventLoop, int fd, int delmask) {
     if (mask & AE_WRITABLE) ee.events |= EPOLLOUT;
     ee.data.fd = fd;
     if (mask != AE_NONE) {
-        epoll_ctl(state->epfd,EPOLL_CTL_MOD,fd,&ee);
+        epoll_ctl(state->epfd, EPOLL_CTL_MOD, fd, &ee);
     } else {
         /* Note, Kernel < 2.6.9 requires a non null event pointer even for
          * EPOLL_CTL_DEL. */
-        epoll_ctl(state->epfd,EPOLL_CTL_DEL,fd,&ee);
+        epoll_ctl(state->epfd, EPOLL_CTL_DEL, fd, &ee);
     }
 }
 
@@ -140,20 +163,20 @@ static int aeApiPoll(aeEventLoop *eventLoop, struct timeval *tvp) {
      *setsize: 每次能处理的最大事件数目；
      *timeout: epoll_wait函数阻塞超时事件，如果超过timeout 时间事件还没发生，函数不再阻塞直接返回；当timeout设置为0时函数立即返回，timeout设置为-1时函数会一直阻塞到有事件发生；
      */
-    retval = epoll_wait(state->epfd,state->events,eventLoop->setsize,
-            tvp ? (tvp->tv_sec*1000 + tvp->tv_usec/1000) : -1);
+    retval = epoll_wait(state->epfd, state->events, eventLoop->setsize,
+                        tvp ? (tvp->tv_sec * 1000 + tvp->tv_usec / 1000) : -1);
     if (retval > 0) {
         int j;
         //所有发生的事件数量
         numevents = retval;
         for (j = 0; j < numevents; j++) {
             int mask = 0;
-            struct epoll_event *e = state->events+j;
+            struct epoll_event *e = state->events + j;
             //转换事件类型为Redis定义的类型（比如：读，写等操作）参考 EPOLL_EVENTS枚举
             if (e->events & EPOLLIN) mask |= AE_READABLE;
             if (e->events & EPOLLOUT) mask |= AE_WRITABLE;
-            if (e->events & EPOLLERR) mask |= AE_WRITABLE|AE_READABLE;
-            if (e->events & EPOLLHUP) mask |= AE_WRITABLE|AE_READABLE;
+            if (e->events & EPOLLERR) mask |= AE_WRITABLE | AE_READABLE;
+            if (e->events & EPOLLHUP) mask |= AE_WRITABLE | AE_READABLE;
             //记录发生事件到fired数组（保存下来慢慢执行）
             eventLoop->fired[j].fd = e->data.fd;
             eventLoop->fired[j].mask = mask;
