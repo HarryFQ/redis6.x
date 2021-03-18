@@ -48,28 +48,33 @@ typedef char *sds;
  * 1、节约内存：如SDS32可以节省3个字节
  * 2、buf指针引用：SDS返回给上层的，不是结构体首地址，而是 buf 指针地址，这样可以通过 buf[-1] 直接获得 flags ，来识别当前 sds 结构体的类型，从而获取整个结构体的任意一个部分
  * */
+ /*小于一字节*/
 struct __attribute__ ((__packed__)) sdshdr5 {
     unsigned char flags; /* 小于一字节 3 lsb of type, and 5 msb of string length 低3位标识sdshdr的类型*/
     char buf[];
 };
+/**一字节 */
 struct __attribute__ ((__packed__)) sdshdr8 {
     uint8_t len; /* used */
     uint8_t alloc; /* excluding the header and null terminator */
     unsigned char flags; /* 3 lsb of type, 5 unused bits */
     char buf[];
 };
+/*两字节*/
 struct __attribute__ ((__packed__)) sdshdr16 {
     uint16_t len; /* used */
     uint16_t alloc; /* excluding the header and null terminator */
     unsigned char flags; /* 3 lsb of type, 5 unused bits */
     char buf[];
 };
+/*四字节*/
 struct __attribute__ ((__packed__)) sdshdr32 {
     uint32_t len; /* used */
     uint32_t alloc; /* excluding the header and null terminator */
     unsigned char flags; /* 3 lsb of type, 5 unused bits */
     char buf[];
 };
+/*8字节*/
 struct __attribute__ ((__packed__)) sdshdr64 {
     uint64_t len; /* used */
     uint64_t alloc; /* excluding the header and null terminator */

@@ -47,9 +47,9 @@
  * sds(Simple Dynamic String): 它其实就是普通的字符串，只是在每个字符串的前面加了一个管理用的头部
  *SDS基本结构 如下图：
  * ·························
- * ·        len            ·
+ * ·        len(4)         ·
  * ·························
- * ·      alloc            ·
+ * ·      alloc(4)         ·
  * ·························
  * ·      buf              ·
  * ·                       ·
@@ -116,6 +116,11 @@ static inline char sdsReqType(size_t string_size) {
  * @param init  如果init 为null , 则字符串将以0 字节初始化 。如果使用SDS_NOINIT，则缓冲区未初始化
  * @param initlen
  * @return
+ * 创建字符串步骤：
+ * 1. 根据字符串长度选择合适类型，同时判断需不需要将SDS_TYPE_5 转为SDS_TYPE_8 ；
+ * 2. 计算头部空间大小，申请内存大小；
+ * 3. 判断 传入字符串是不是SDS_NOINT,如果是则初始化 null;否则清空指定内容；
+ * 4. 分配空间，填充类型，填充数据，末尾追加'\0';
  */
 sds sdsnewlen(const void *init, size_t initlen) {
     void *sh;
@@ -274,7 +279,13 @@ void sdsclear(sds s) {
  * Note: this does not change the *length* of the sds string as returned (注意:这不会改变返回的sds字符串的*长度*)
  * by sdslen(), but only the free buffer space we have. (通过sdslen()，但只有可用的缓冲区空间。)
  * 扩容
- * */
+ * 扩容步骤：
+ * 1. 先查找当前的sds 剩余空间大小，当前类型；
+ * 2. 获取目标总需要空间大小；
+ * 3. 新空间小于1M 就扩容2倍，否则就增加1M；
+ * 4. 确定新字符串对应的类型；
+ * 5. 与原来字符串类型比较，相同则扩容，指针指向新的字符串；不相同则重新申请空间，原来的内容拷贝到新的空间，并释放原来的字符串。
+ **/
 sds sdsMakeRoomFor(sds s, size_t addlen) {
     void *sh, *newsh;
     // 查找当前 sds 剩余可用空间的大小
@@ -348,7 +359,7 @@ sds sdsMakeRoomFor(sds s, size_t addlen) {
  * After the call, the passed sds string is no longer valid and all the
  * references must be substituted with the new pointer returned by the call.
  * 缩容处理，与扩容相反
- * */
+ **/
 sds sdsRemoveFreeSpace(sds s) {
     void *sh, *newsh;
     char type, oldtype = s[-1] & SDS_TYPE_MASK;
