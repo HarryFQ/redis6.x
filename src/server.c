@@ -5282,7 +5282,12 @@ int iAmMaster(void) {
             (server.cluster_enabled && nodeIsMaster(server.cluster->myself)));
 }
 
-
+/**
+ * TODO  启动函数
+ * @param argc
+ * @param argv
+ * @return
+ */
 int main(int argc, char **argv) {
     struct timeval tv;
     int j;
