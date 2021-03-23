@@ -247,14 +247,24 @@ robj *createHashObject(void) {
     o->encoding = OBJ_ENCODING_ZIPLIST;
     return o;
 }
-
+/**
+ * 创建zset 数据结构：字典 + 跳表
+ * @return
+ */
 robj *createZsetObject(void) {
     zset *zs = zmalloc(sizeof(*zs));
     robj *o;
 
+    // dict 用来查询数据到分数的对应关系，如 zscore 就可以直接根据元素拿到分值
     zs->dict = dictCreate(&zsetDictType,NULL);
+
+    // skiplist 用来根据分数查询数据(可能是范围查找)
     zs->zsl = zslCreate();
+
+    // 设置对象类型
     o = createObject(OBJ_ZSET,zs);
+
+    // 设置编码类型
     o->encoding = OBJ_ENCODING_SKIPLIST;
     return o;
 }
