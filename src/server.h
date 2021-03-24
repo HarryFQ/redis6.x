@@ -563,7 +563,7 @@ typedef struct moduleValue {
 
 /* This is a wrapper for the 'rio' streams used inside rdb.c in Redis, so that
  * the user does not have to take the total count of the written bytes nor
- * to care about error conditions. */
+ * to care about error conditions. todo*/
 typedef struct RedisModuleIO {
     size_t bytes;       /* Bytes read / written so far. */
     rio *rio;           /* Rio stream. */
@@ -625,13 +625,16 @@ typedef struct RedisModuleDigest {
 #define OBJ_SHARED_REFCOUNT INT_MAX     /* Global object never destroyed. */
 #define OBJ_STATIC_REFCOUNT (INT_MAX-1) /* Object allocated in the stack. */
 #define OBJ_FIRST_SPECIAL_REFCOUNT OBJ_STATIC_REFCOUNT
+/**
+ * redisObject 对象
+ */
 typedef struct redisObject {
-    unsigned type:4;
-    unsigned encoding:4;
+    unsigned type:4; // 4 bit 指定可以使用那些API
+    unsigned encoding:4; // 4 bit 底层编码
     unsigned lru:LRU_BITS; /* LRU time (relative to global lru_clock) or
                             * LFU data (least significant 8 bits frequency
                             * and most significant 16 bits access time). */
-    int refcount;
+    int refcount; // 4 byte 内存管理空间使用，计数被引用的次数，
     void *ptr;
 } robj;
 
@@ -664,11 +667,11 @@ typedef struct clientReplyBlock {
  * by integers from 0 (the default database) up to the max configured
  * database. The database number is the 'id' field in the structure. */
 typedef struct redisDb {
-    dict *dict;                 /* The keyspace for this DB */
-    dict *expires;              /* Timeout of keys with a timeout set */
-    dict *blocking_keys;        /* Keys with clients waiting for data (BLPOP)*/
-    dict *ready_keys;           /* Blocked keys that received a PUSH */
-    dict *watched_keys;         /* WATCHED keys for MULTI/EXEC CAS */
+    dict *dict;                 /* The keyspace for this DB K/V 空间*/
+    dict *expires;              /* Timeout of keys with a timeout set 键的过期时间字典 */
+    dict *blocking_keys;        /* Keys with clients waiting for data (BLPOP) 阻塞出队列*/
+    dict *ready_keys;           /* Blocked keys that received a PUSH 阻塞放元素*/
+    dict *watched_keys;         /* WATCHED keys for MULTI/EXEC CAS 事务相关处理 */
     int id;                     /* Database ID */
     long long avg_ttl;          /* Average TTL, just for stats */
     unsigned long expires_cursor; /* Cursor of the active expire cycle. */

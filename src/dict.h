@@ -46,39 +46,39 @@
 
 /* dictEntry就是一个key-value对 */
 typedef struct dictEntry {
-    void *key;
-    union {
-        void *val;
+    void *key; // 指向的是sds
+    union { // 联合体 ，里面很丰富数据类型
+        void *val; // value 的指针，指向一个具体的类型(String,zset,hash ,list, set)
         uint64_t u64;
-        int64_t s64;
-        double d;
-    } v;
-    struct dictEntry *next;
+        int64_t s64; // 存储过期时间
+        double d; // zset 时，存储score
+    } v; // value
+    struct dictEntry *next; // 存在hash 冲突时，指向的是下一个节点。hash 冲突解决办法就是使用一个单向链表头插法解决
 } dictEntry;
 
 /* 每一个dict都有一个dictType，特定于dict的操作的集合。比如，不同类型的dict，其比较key的方式可能会是不一样的。 */
 typedef struct dictType {
-    uint64_t (*hashFunction)(const void *key);
+    uint64_t (*hashFunction)(const void *key);// 定义相关的hash 函数
 
-    void *(*keyDup)(void *privdata, const void *key);
+    void *(*keyDup)(void *privdata, const void *key); // 键复制相关
 
-    void *(*valDup)(void *privdata, const void *obj);
+    void *(*valDup)(void *privdata, const void *obj); // value 复制相关
 
-    int (*keyCompare)(void *privdata, const void *key1, const void *key2);
+    int (*keyCompare)(void *privdata, const void *key1, const void *key2); // db 中数据键的比较
 
-    void (*keyDestructor)(void *privdata, void *key);
+    void (*keyDestructor)(void *privdata, void *key); // key 释放函数
 
-    void (*valDestructor)(void *privdata, void *obj);
+    void (*valDestructor)(void *privdata, void *obj); // value 释放函数
 } dictType;
 
 /* This is our hash table structure. Every dictionary has two of this as we
  * implement incremental rehashing, for the old to the new table.  (这就是我们的哈希表结构。每个字典都有两个这样的词实现从旧表到新表的增量重散列。)
  **/
 typedef struct dictht {
-    dictEntry **table;  /* 指针数组，做为hash table的bucket */
-    unsigned long size; /* table数组的大小，看起来在实现中一直会是2的倍数 */
-    unsigned long sizemask; /* 为了方便操作记录mask */
-    unsigned long used; /* 已经使用的bucket个数 */
+    dictEntry **table;  /* 指针数组，指向每个数组的首地址 */
+    unsigned long size; /* table数组的大小，size总是  2的n 次方 */
+    unsigned long sizemask; /* sizemask 等于 (size -1） */
+    unsigned long used; /* 当前数组里面有多少个元素 */
 } dictht;
 
 /*
@@ -91,7 +91,7 @@ typedef struct dict {
     dictType *dict; /* 特定于dict的操作集合 */
     void *privdata; /* 特定于dict的数据 */
     dictht ht[2];    /* 两个hash表 */
-    long rehashidx; /* rehashing not in progress if rehashidx == -1 */
+    long rehashidx; /* rehashing not in progress if rehashidx == -1 打散重新hash */
     unsigned long iterators; /* number of iterators currently running */
 } dict;
 
