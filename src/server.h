@@ -635,7 +635,7 @@ typedef struct redisObject {
                             * LFU data (least significant 8 bits frequency
                             * and most significant 16 bits access time). */
     int refcount; // 4 byte 内存管理空间使用，计数被引用的次数，
-    void *ptr;
+    void *ptr;//8 byte
 } robj;
 
 /* The a string name for an object's type as listed above

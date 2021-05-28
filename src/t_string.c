@@ -98,7 +98,9 @@ void setGenericCommand(client *c, int flags, robj *key, robj *val, robj *expire,
     addReply(c, ok_reply ? ok_reply : shared.ok);
 }
 
-/* SET key value [NX] [XX] [KEEPTTL] [EX <seconds>] [PX <milliseconds>] */
+/* SET key value [NX] [XX] [KEEPTTL] [EX <seconds>] [PX <milliseconds>]
+ * SET 命令
+ * */
 void setCommand(client *c) {
     int j;
     robj *expire = NULL;

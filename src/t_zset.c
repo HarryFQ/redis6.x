@@ -92,6 +92,12 @@ zskiplistNode *zslCreateNode(int level, double score, sds ele) {
 /**
  *Create a new skiplist.
  * 创建一个跳跃表
+ * 创建跳跃链表步骤：
+ * 1. 为跳跃链表外层主结构 分配空间
+ * 2. 一开设置跳跃链表层高为1 长度为0
+ * 3. 在header 上创建32 个节点，作为每层的头节点，每层的头结点，score 设置为0， ele设置为null;
+ * 4. 循环遍历创建的每层头节点，设置后继为null，跨度span 为0；
+ * 5. 设置头结点的前驱为null, 尾节点为null.
  *
  **/
 zskiplist *zslCreate(void) {
@@ -144,7 +150,7 @@ void zslFree(zskiplist *zsl) {
  * The return value of this function is between 1 and ZSKIPLIST_MAXLEVEL
  * (both inclusive), with a powerlaw-alike distribution where higher
  * levels are less likely to be returned.
- *跳跃表生成层高实现，结点层高最小值为1 ，最大值为32 ，其中最大值是 ZSKIPLIST_MAXLEVEL(64) 跳跃表除了Header结点以外，其余的结点层高是随机的，
+ *跳跃表生成层高实现，结点层高最小值为1 ，最大值为32 ，其中最大值是 ZSKIPLIST_MAXLEVEL(32) 跳跃表除了Header结点以外，其余的结点层高是随机的，
  * */
 int zslRandomLevel(void) {
     //默认层高是1
@@ -205,8 +211,9 @@ zskiplistNode *zslInsert(zskiplist *zsl, double score, sds ele) {
      * 由函数zslRandomLevel得知，跳跃表每个插入结点的层高是随机的，那么跳跃表整体层高也是随机的，如上所示，当出现新增的结点层高大于当前跳跃表层高的时候（上面跳跃表层高是2，新增结点层高假设是3）我们需要调整跳跃表的整体层高，
      * */
     //幂次定律，随机生成层高，越高的层出现的概率越低
+    //随机获取当前新增结点的层高
     level = zslRandomLevel();
-    if (level > zsl->level) {//随机层高大于当前最大层高，则初始化新的层高
+    if (level > zsl->level) {//如果随机生成层高大于当前最大层高，则初始化新的层高
         for (i = zsl->level; i < level; i++) {
             rank[i] = 0;//对rank[当前层高]赋值为默认值0
             update[i] = zsl->header;//update[当前层高]设置为头结点

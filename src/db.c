@@ -1279,7 +1279,7 @@ int keyIsExpired(redisDb *db, robj *key) {
     return now > when;
 }
 
-/* This function is called when we are going to perform some operation
+/** This function is called when we are going to perform some operation
  * in a given key, but such key may be already logically expired even if
  * it still exists in the database. The main way this function is called
  * is via lookupKey*() family of functions.
@@ -1297,8 +1297,17 @@ int keyIsExpired(redisDb *db, robj *key) {
  * propagation of a DEL/UNLINK command in AOF / replication stream.
  *
  * The return value of the function is 0 if the key is still valid,
- * otherwise the function returns 1 if the key is expired. */
+ * otherwise the function returns 1 if the key is expired.
+ *     当我们要执行一些操作时，将调用此函数  在给定的密钥中，但即使该密钥在逻辑上可能已经过期 它仍然存在于数据库中。该函数的主要调用方式
+ * 通过lookupKey *（）函数系列。
+ *     函数的行为取决于复制对象的作用实例，因为从属实例不会使密钥失效，所以它们会等待对于一致性问题，来自主节点的DEL。但是，即使
+ * 从节点将尝试使函数具有一致的返回值，这样在从节点侧执行的读取命令将能够即使密钥仍然存在，其行为也就好像密钥已过期（因为主节点尚未传播DEL）。
+ *     在master中，作为寻找已过期密钥的副作用，例如密钥将从数据库中逐出。同样，这可能会触发在AOF /复制流中传播DEL / UNLINK命令。
+ * 如果键仍然有效，则函数的返回值为0， 否则，如果密钥已过期，则该函数返回1。
+ * TODO 判断键是否过期，slave 节点不会删除数据，只会主节点删除数据。
+ **/
 int expireIfNeeded(redisDb *db, robj *key) {
+    // 判断key 是否过期
     if (!keyIsExpired(db,key)) return 0;
 
     /* If we are running in the context of a slave, instead of
@@ -1308,7 +1317,9 @@ int expireIfNeeded(redisDb *db, robj *key) {
      *
      * Still we try to return the right information to the caller,
      * that is, 0 if we think the key should be still valid, 1 if
-     * we think the key is expired at this time. */
+     * we think the key is expired at this time.
+     * 如果我们在从节点的上下文中运行，则不是从数据库中退出过期密钥，而是返回ASAP：从属密钥过期由主服务器控制，该主机将向我们发送已过期密钥的综合DEL操作。
+     * 仍然我们尝试将正确的信息返回给调用者，即，如果我们认为密钥仍然有效，则为0；如果我们认为密钥此时已过期，则为1。*/
     if (server.masterhost != NULL) return 1;
 
     /* Delete the key */

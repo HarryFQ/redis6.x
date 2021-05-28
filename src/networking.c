@@ -1831,7 +1831,7 @@ int processMultibulkBuffer(client *c) {
                 //清空sds
                 sdsclear(c->querybuf);
             } else {
-                //解析参数，创建新的sds
+                //解析参数，创建新的sds， 里面会判断是创建embstr 还是创建rawstr 类型
                 c->argv[c->argc++] =
                         createStringObject(c->querybuf + c->qb_pos, c->bulklen);
                 c->qb_pos += c->bulklen + 2;

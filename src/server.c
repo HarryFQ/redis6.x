@@ -3499,7 +3499,7 @@ void call(client *c, int flags) {
     updateCachedTime(0);
     //计时
     start = server.ustime;
-    //执行命令
+    //执行命令  redisCommandProc
     c->cmd->proc(c);
     duration = ustime() - start;
     dirty = server.dirty - dirty;
@@ -3754,9 +3754,10 @@ int processCommand(client *c) {
      * However we don't perform the redirection if:
      * 1) The sender of this command is our master.
      * 2) The command has no key arguments.
-     *如果启用了集群，请在这里执行集群重定向。然而，我们不执行重定向，如果:
+     *如果启用了集群，在这里执行集群重定向。然而，再下面两个条件下我们不执行重定向:
      *  1)发出这条命令的人是master。
      *  2)命令没有关键参数。
+     *  TODO cluster 模式下重定向
      **/
     if (server.cluster_enabled &&
         !(c->flags & CLIENT_MASTER) &&

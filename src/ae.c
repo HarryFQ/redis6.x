@@ -616,7 +616,7 @@ void aeMain(aeEventLoop *eventLoop) {
     // 如果有需要在事件处理前执行的函数，那么其回调函数，接着执行事件aeProcessEvents()，这个函数详见ae.c。
     eventLoop->stop = 0; //设置停止标记为（不停止）
     while (!eventLoop->stop) {//除非停止标志被设置，不然循环不会停止
-        aeProcessEvents(eventLoop, AE_ALL_EVENTS |
+        aeProcessEvents(eventLoop,   |
                                    AE_CALL_BEFORE_SLEEP |
                                    //函数不为空，先执行阻塞函数.beforesleep，它在每次事件循环开始，即Redis阻塞等待文件事件之前执行。函数beforesleep会执行一些不是很浪费时间的操作，如：集群相关操作，过期键的删除操作，向客户端返回命令回复等。
                                    AE_CALL_AFTER_SLEEP);//执行事件

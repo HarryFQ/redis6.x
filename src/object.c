@@ -480,7 +480,7 @@ robj *tryObjectEncoding(robj *o) {
     /* We try some specialized encoding only for objects that are
      * RAW or EMBSTR encoded, in other words objects that are still
      * in represented by an actually array of chars. */
-    // 只有类型为原生sds 类型 或者 embstr 类型，还有机会进一步编码， 否则直接返回
+    // 只有类型为原生raw 类型 或者 embstr 类型，还有机会进一步编码， 否则直接返回
     if (!sdsEncodedObject(o)) return o;
 
     /* It's not safe to encode shared objects: shared objects can be shared
